@@ -295,24 +295,252 @@ function QuizDiario({seller,historial,onComplete}){
   );
 }
 
-function Selector({onVendedora,onDuena}){
+function Selector({onVendedora,onDuena,onEntrenamiento}){
   return(
     <div style={{minHeight:"100vh",background:C.dark,fontFamily:"system-ui,-apple-system,sans-serif",display:"flex",flexDirection:"column"}}>
-      <div style={{padding:"60px 28px 40px",textAlign:"center"}}>
+      <div style={{padding:"50px 28px 32px",textAlign:"center"}}>
         <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",letterSpacing:"6px",textTransform:"uppercase",marginBottom:12}}>BIENVENIDA A</div>
         <div style={{fontSize:48,fontWeight:900,color:C.white,letterSpacing:"8px"}}>HINDICA</div>
         <div style={{width:50,height:3,background:C.orange,margin:"18px auto"}}/>
       </div>
-      <div style={{flex:1,background:C.bg,borderRadius:"32px 32px 0 0",padding:"36px 24px"}}>
-        <div style={{fontSize:14,fontWeight:700,color:C.muted,textAlign:"center",marginBottom:28,textTransform:"uppercase",letterSpacing:"1px"}}>¿Cómo ingresas hoy?</div>
-        <button onClick={onVendedora} style={{width:"100%",background:C.orange,border:"none",borderRadius:20,padding:"24px 20px",marginBottom:16,cursor:"pointer",fontFamily:"inherit",textAlign:"left",display:"flex",alignItems:"center",gap:18}}>
-          <span style={{fontSize:36}}>🛍️</span>
-          <div><div style={{fontSize:18,fontWeight:800,color:C.white}}>Soy vendedora</div><div style={{fontSize:13,color:"rgba(255,255,255,0.7)",marginTop:3}}>Apertura, ventas y cierre de turno</div></div>
+      <div style={{flex:1,background:C.bg,borderRadius:"32px 32px 0 0",padding:"32px 24px"}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.muted,textAlign:"center",marginBottom:24,textTransform:"uppercase",letterSpacing:"1px"}}>¿Cómo ingresas hoy?</div>
+        <button onClick={onVendedora} style={{width:"100%",background:C.orange,border:"none",borderRadius:20,padding:"22px 20px",marginBottom:14,cursor:"pointer",fontFamily:"inherit",textAlign:"left",display:"flex",alignItems:"center",gap:18}}>
+          <span style={{fontSize:34}}>🛍️</span>
+          <div><div style={{fontSize:17,fontWeight:800,color:C.white}}>Soy vendedora</div><div style={{fontSize:13,color:"rgba(255,255,255,0.7)",marginTop:3}}>Apertura, ventas y cierre de turno</div></div>
         </button>
-        <button onClick={onDuena} style={{width:"100%",background:C.dark,border:"2px solid rgba(255,255,255,0.15)",borderRadius:20,padding:"24px 20px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",display:"flex",alignItems:"center",gap:18}}>
-          <span style={{fontSize:36}}>👑</span>
-          <div><div style={{fontSize:18,fontWeight:800,color:C.white}}>Soy la dueña</div><div style={{fontSize:13,color:"rgba(255,255,255,0.55)",marginTop:3}}>Panel general, alertas y reportes</div></div>
+        <button onClick={onEntrenamiento} style={{width:"100%",background:C.green,border:"none",borderRadius:20,padding:"22px 20px",marginBottom:14,cursor:"pointer",fontFamily:"inherit",textAlign:"left",display:"flex",alignItems:"center",gap:18}}>
+          <span style={{fontSize:34}}>📚</span>
+          <div><div style={{fontSize:17,fontWeight:800,color:C.white}}>Estoy en entrenamiento</div><div style={{fontSize:13,color:"rgba(255,255,255,0.7)",marginTop:3}}>Principios, manual de ventas y quiz</div></div>
         </button>
+        <button onClick={onDuena} style={{width:"100%",background:C.dark,border:"2px solid rgba(255,255,255,0.15)",borderRadius:20,padding:"22px 20px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",display:"flex",alignItems:"center",gap:18}}>
+          <span style={{fontSize:34}}>👑</span>
+          <div><div style={{fontSize:17,fontWeight:800,color:C.white}}>Soy la dueña</div><div style={{fontSize:13,color:"rgba(255,255,255,0.55)",marginTop:3}}>Panel general, alertas y reportes</div></div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── MODO ENTRENAMIENTO ───────────────────────────────────────────────────────
+const MANUAL_VENTAS = [
+  {
+    titulo:"Bienvenida a Hindica",
+    icono:"🌿",
+    contenido:"Bienvenida al equipo Hindica.\n\nHindica nació para traer a Chile ropa hermosa, colorida y confeccionada artesanalmente en India. Vendemos prendas únicas — en muchos casos existen solo tres iguales en todo Chile.\n\nAl trabajar aquí, no eres solo una vendedora. Eres la persona que conecta a cada clienta con algo especial. Ese es un rol de mucha responsabilidad y también de mucho valor.\n\nEste manual te prepara para el día a día. Léelo con calma. Tarda aproximadamente 15 minutos. Cuando termines, sabrás exactamente qué hacer en cada momento de tu turno."
+  },
+  {
+    titulo:"Tu día completo — De principio a fin",
+    icono:"📅",
+    contenido:"Así es un día típico en Hindica:\n\n1. Llegas a la tienda a la hora acordada\n2. Abres la app → Soy vendedora → Seleccionas tienda → Tu nombre → PIN\n3. Lees los 10 principios Hindica (obligatorio cada día)\n4. Respondes el quiz de 3 preguntas\n5. Completas la apertura: checklist + fotos + fondo de caja\n6. Abres la tienda y comienzas a atender\n7. Cada hora: revisas y ordenas la tienda + foto\n8. Cada venta: la registras en la app inmediatamente\n9. Al cierre: conteo de stock + arqueo de caja + foto\n10. Cierras la tienda\n\nLa app es tu compañera durante todo el día. No es opcional — es parte del trabajo."
+  },
+  {
+    titulo:"Cómo abrir la app — Paso a paso",
+    icono:"📱",
+    contenido:"1. Abre el navegador (Safari o Chrome) en tu teléfono\n2. Ve a: gestion.hindica.cl\n3. Toca 'Soy vendedora'\n4. Selecciona tu tienda (Maitencillo, Papudo o Reñaca)\n5. Selecciona tu nombre de la lista\n6. Ingresa tu PIN de 4 dígitos\n\nDespués del PIN, verás los 10 Principios Hindica. Debes leer y confirmar cada uno. No se puede saltar.\n\nLuego hay 3 preguntas de quiz sobre los principios. El sistema recuerda tus errores y te pregunta sobre tus puntos débiles.\n\nDespués del quiz comienza la apertura formal de la tienda."
+  },
+  {
+    titulo:"La apertura — Cómo abrir bien la tienda",
+    icono:"🔓",
+    contenido:"La apertura tiene pasos obligatorios en este orden:\n\n✓ Limpiar el piso de la tienda\n✓ Limpiar los espejos (fundamentales — las clientas se miran ahí)\n✓ Organizar el tablero de accesorios: 1 de cada modelo, colores variados\n✓ Dejar la ropa bien exhibida y ordenada\n✓ Revisar insumos: ¿hay bolsas? ¿papel de envolver? ¿perchas?\n✓ Contar el stock y confirmar que todo cuadra\n\nFotos obligatorias:\n📸 Foto de la tienda abierta, limpia y ordenada\n📸 Foto del tablero de accesorios\n\nFondo de caja: anota cuánto efectivo hay en la caja al abrir.\n\nSi falta algo (bolsas, papel, etc.), repórtalo — la dueña lo verá de inmediato."
+  },
+  {
+    titulo:"El tablero de accesorios — La regla más importante",
+    icono:"💍",
+    contenido:"El tablero de accesorios es una de tus responsabilidades más visibles.\n\nReglas obligatorias:\n• Solo 1 de cada modelo en exhibición — nunca dos iguales\n• Colores lo más variados posible — nunca dos del mismo color juntos\n• Si se vende algo del tablero, reemplázalo inmediatamente con otro del stock\n• El tablero debe verse lleno y ordenado siempre — no importa la hora\n\nEsto se verifica en la apertura y en cada chequeo horario con foto.\n\nUn tablero bien organizado vende solo. Uno desordenado hace que las clientas pasen de largo.\n\nSi hay stock de un modelo pero no está en el tablero, ponlo. Si ya hay uno exhibido, el resto va al cajón."
+  },
+  {
+    titulo:"Cómo registrar una venta",
+    icono:"🛍️",
+    contenido:"Cada venta se registra en la app INMEDIATAMENTE después de cobrar.\n\nPasos:\n1. Toca 'Registrar venta'\n2. Selecciona la categoría (Faldas, Tops, Vestidos, Joyería, etc.)\n3. Selecciona el producto exacto\n4. Elige el color base\n5. Para ropa: elige el estampado y color acento\n6. 📸 Toma una foto clara del artículo vendido (obligatorio)\n7. Ingresa el precio\n8. Selecciona el medio de pago: Efectivo / Transferencia / Crédito / Débito\n\nImportante:\n• Para ropa: la foto es del ESTAMPADO (la tela, el diseño)\n• Para joyería: la foto es de LA PIEZA VENDIDA\n• Nunca registres una venta sin foto — no se puede guardar sin ella\n• Nunca registres una venta sin el medio de pago correcto"
+  },
+  {
+    titulo:"El chequeo horario — Cada hora sin excepción",
+    icono:"⏰",
+    contenido:"La app te avisará cuando sea hora de revisar la tienda.\n\nLa lógica inteligente:\n• Si vendiste algo en la última hora → te da 20 minutos extra (estabas ocupada)\n• Si no hubo ventas → te recuerda a los 120 minutos\n• Si ignoras dos avisos seguidos → la dueña recibe una alerta\n\nQué debes hacer en el chequeo:\n✓ Verificar que la tienda está ordenada\n✓ Que los artículos estén bien exhibidos\n✓ Que el tablero de accesorios tenga 1 de cada modelo, colores variados\n✓ Que nada esté roto o en mal estado\n📸 Foto de la tienda en ese momento\n📸 Foto del tablero de accesorios\n\nSi ves algo que reportar (roto, desorden, clienta difícil, algo raro), escríbelo en el campo de notas."
+  },
+  {
+    titulo:"Manejo de caja — Tu responsabilidad más importante",
+    icono:"💵",
+    contenido:"La caja es una responsabilidad directa tuya. Errores aquí afectan el negocio.\n\nAl abrir:\n• Anotar el fondo inicial (cuánto efectivo hay al comenzar)\n\nDurante el día:\n• Registrar CADA venta con el medio de pago correcto\n• Si sale efectivo de la caja por cualquier motivo → registrar 'Salida de caja' con monto y motivo\n\nAl cerrar:\n• Cuenta físicamente el efectivo que hay en la caja\n• La app calcula cuánto debería haber: fondo + ventas en efectivo - salidas\n• Ingresa el monto real\n• Si hay diferencia, la dueña recibe una alerta — sé siempre honesta\n\nNunca guardes efectivo fuera de la caja. Nunca cobres sin registrar. Si hay un error, dilo de inmediato — los errores que se reportan tienen solución, los que se esconden no."
+  },
+  {
+    titulo:"Cómo cerrar la tienda",
+    icono:"🔒",
+    contenido:"Al finalizar el día:\n\n1. Haz el conteo final del stock\n2. Entra a la app → 'Cerrar turno'\n3. Verás el resumen de ventas del día por medio de pago\n4. Cuenta el efectivo físico e ingrésalo\n5. Si hay diferencia, la app te la muestra — ingrésala honestamente\n6. Completa el checklist de cierre:\n   ✓ Limpié la tienda\n   ✓ Dejé todo ordenado para mañana\n   ✓ Tablero de accesorios guardado correctamente\n   ✓ Conté el stock de cierre\n7. 📸 Foto de la tienda cerrada y ordenada\n8. Opcionalmente, agrega una nota para la dueña sobre el día\n9. Confirma el cierre — queda bloqueado\n\nLa tienda debe quedar exactamente como la quieres encontrar al día siguiente."
+  },
+  {
+    titulo:"El Método Hindica de Ventas — Los 5 Pasos",
+    icono:"🌟",
+    contenido:"En Hindica no vendemos ropa. Acompañamos a una mujer a descubrir cómo quiere sentirse.\n\nNuestro método:\n1. OBSERVAR — antes de acercarte, mira qué está haciendo\n2. ESCUCHAR — una pregunta abierta, luego cállate y escucha\n3. COMPRENDER — entiende qué necesita realmente\n4. ASESORAR — ofrece solo 2-3 opciones que le sirvan, sé honesta\n5. INSPIRAR — ayúdala a verse bien, sugiere un accesorio, deja que decida\n\nNo hay guión. Hay actitud: curiosidad, calidez y honestidad.\n\nUna clienta que se siente bien contigo vuelve y trae amigas. Una que se siente presionada no vuelve nunca."
+  },
+  {
+    titulo:"Paso 1 — OBSERVAR",
+    icono:"👁️",
+    contenido:"Antes de acercarte, observa.\n\n¿Qué está mirando? ¿Va rápido o despacio? ¿Toca las prendas o solo mira? ¿Viene sola o acompañada? ¿Parece que tiene prisa?\n\nEsto te da información valiosa antes de decir una sola palabra.\n\nUna clienta que toca las telas → está interesada, puedes acercarte\nUna que mira desde lejos → necesita tiempo, dale espacio\nUna que entra apurada → salúdala y déjala explorar\n\nNunca te lances a hablar apenas entra. Ese primer momento de tranquilidad es valioso.\n\nEl objetivo de este paso: saber cuándo y cómo acercarte."
+  },
+  {
+    titulo:"Paso 2 — ESCUCHAR",
+    icono:"👂",
+    contenido:"Cuando te acerques, hazlo con una sola pregunta abierta:\n\n'¿Estás buscando algo en particular o estás viendo qué te llama la atención?'\n\nLuego CALLA. No interrumpas. No ofrezcas opciones todavía. No digas 'tenemos mucha variedad'.\n\nDeja que ella hable. Lo que dice (y lo que NO dice) te da todo lo que necesitas.\n\nSi dice 'solo estoy mirando' → 'Perfecto, cualquier cosa me avisas.' Y te alejas. No la persigas.\n\nSi dice algo concreto → escucha todo, asiente, y pasa al paso 3.\n\nEl error más común: hablar demasiado rápido antes de entender qué quiere ella."
+  },
+  {
+    titulo:"Paso 3 — COMPRENDER",
+    icono:"🧠",
+    contenido:"Comprende qué está buscando realmente. A veces lo que piden no es lo que necesitan.\n\nEjemplo:\n'Busco algo cómodo para la playa' puede significar:\n→ Quiere verse bien sin esfuerzo\n→ Va a estar mucho tiempo al sol y necesita algo fresco\n→ No quiere gastar mucho\n\nHaz una pregunta más si necesitas claridad:\n'¿Es para salir a cenar o más para estar en la playa durante el día?'\n'¿Tienes algún color favorito o algo que quieras evitar?'\n'¿Buscas algo para una ocasión especial o para el día a día?'\n\nUna sola pregunta extra bien hecha te ahorra cinco minutos de mostrar cosas que no le sirven."
+  },
+  {
+    titulo:"Paso 4 — ASESORAR",
+    icono:"💡",
+    contenido:"Ahora sí hablas. Pero no de todas las opciones — de las 2 o 3 que realmente le sirven.\n\nSé honesta. Si algo no le queda bien, dilo con amabilidad:\n'Este modelo es muy lindo pero creo que este otro te va a favorecer más con tu figura.'\n\nNunca digas 'te queda perfecto' si no es verdad. Ella lo sabe. Perderás su confianza.\n\nSí puedes decir:\n'Este color te ilumina muchísimo.'\n'Con tu altura este largo queda ideal.'\n'Este estampado es único — en Chile hay tres iguales.'\n\nLa honestidad construye confianza. Una clienta que confía en tu opinión compra más y vuelve más."
+  },
+  {
+    titulo:"Paso 5 — INSPIRAR",
+    icono:"✨",
+    contenido:"El cierre no es presionar. Es inspirar.\n\nCuando ella se ve bien con algo, refléjalo:\n'Te queda increíble — ese color con tu tono de piel es perfecto.'\n'Esta falda con unas sandalias blancas estaría espectacular.'\n\nSugiere un accesorio que complete el look:\n'¿Viste que tenemos unos aretes que irían ideales con eso?'\n\nDeja que ella decida. No preguntes '¿lo llevas?' — di '¿te lo envuelvo?'\n\nSi no quiere comprar hoy, que se vaya bien:\n'No hay problema, si ves algo que te guste y no está tu talla, avísame.'\n'Vuelve cuando quieras, siempre estamos cambiando las cosas.'\n\nEl 'no compro hoy' de hoy puede ser el 'quiero tres cosas' de la próxima semana."
+  },
+  {
+    titulo:"Upselling — Cómo sugerir más sin presionar",
+    icono:"🎁",
+    contenido:"Upselling no es vender más por vender. Es ayudar a la clienta a llevarse una experiencia completa.\n\nReglas de oro:\n• Solo sugiere si realmente complementa lo que compró\n• Muéstralo físicamente — pon el collar junto al vestido\n• Una sola sugerencia adicional, no tres\n• Si dice que no, acéptalo sin insistir\n\nEjemplos que funcionan:\nFalda gitana azul → scrunchie en tono tierra que contraste\nVestido largo con flores → arete pequeño discreto\nTop cuello V → collar corto que lo complete\n\nEjemplos que NO funcionan:\nMostrar todo el tablero de accesorios esperando que algo le llame la atención\nInsistir dos veces con el mismo accesorio\nDecir 'son solo $10.000' para convencer\n\nLa sugerencia perfecta se siente como un consejo de amiga, no como una venta."
+  },
+  {
+    titulo:"Cómo comportarte en la tienda",
+    icono:"⭐",
+    contenido:"Presentación personal:\n• Llega siempre a la hora acordada — si hay un imprevisto, avisa ANTES\n• Vístete acorde al estilo Hindica — colorido, limpio, ordenado\n• Sin teléfono en la mano mientras hay clientas en la tienda\n• El teléfono solo en momentos sin clientas\n\nActitud:\n• Saluda a CADA persona que entra — sin excepción\n• Si hay varias clientas, haz que todas se sientan vistas\n• Si tienes un mal día personal, déjalo afuera — aquí siempre hay calidez\n• Trata a la dueña con la misma honestidad que a las clientas\n\nCon las compañeras:\n• Si trabajas con otra vendedora, coordínense — no dos encima de la misma clienta\n• Si hay discrepancias, háblalo entre ustedes o con la dueña — nunca delante de clientas"
+  },
+  {
+    titulo:"Qué hacer y qué NO hacer",
+    icono:"📋",
+    contenido:"✅ SÍ hacer:\n• Registrar cada venta inmediatamente\n• Saludar a todas las clientas\n• Ser honesta con la caja siempre\n• Avisar si falta algo antes de que sea un problema\n• Reportar cualquier situación extraña a la dueña\n• Dejar la tienda ordenada siempre, no solo al cerrar\n• Hacer el chequeo horario aunque estés ocupada\n\n❌ NO hacer:\n• Cobrar sin registrar en la app\n• Guardar efectivo fuera de la caja\n• Decir 'te queda perfecto' si no es verdad\n• Ignorar los avisos de la app\n• Salir sin completar el cierre\n• Hacer promesas que la tienda no puede cumplir\n• Hablar mal de otras vendedoras o de la dueña frente a clientas\n• Usar el teléfono personal mientras hay clientas"
+  },
+  {
+    titulo:"Preguntas frecuentes",
+    icono:"❓",
+    contenido:"¿Y si no sé el precio de algo?\nPregunta o busca en la app. Nunca inventes un precio.\n\n¿Y si una clienta se enoja o se pone difícil?\nCalmada y amable. Si la situación se complica, avisa a la dueña.\n\n¿Y si me equivoco registrando una venta?\nAvisa a la dueña de inmediato. Siempre hay solución cuando se reporta a tiempo.\n\n¿Y si la caja no cuadra?\nSé honesta. Anota la diferencia real. La dueña lo verá y te contactará — lo importante es la transparencia.\n\n¿Y si la app no funciona?\nIntenta recargar la página. Si sigue sin funcionar, anota las ventas en papel y avisa a la dueña.\n\n¿Y si llego tarde?\nAvisa ANTES. Un mensaje de '5 minutos tarde' es completamente diferente a llegar sin avisar."
+  },
+];
+
+  {
+    titulo:"Paso 1 — OBSERVAR",
+    icono:"👁️",
+    contenido:"Antes de acercarte, observa.\n\n¿Qué está mirando? ¿Va rápido o despacio? ¿Toca las prendas o solo mira? ¿Viene sola o acompañada?\n\nEsto te da información valiosa antes de decir una sola palabra. Una clienta que toca las telas está interesada. Una que mira desde lejos necesita tiempo.\n\nNunca te acerques antes de que ella dé alguna señal de apertura."
+  },
+  {
+    titulo:"Paso 2 — ESCUCHAR",
+    icono:"👂",
+    contenido:"Cuando te acerques, hazlo con una sola pregunta abierta:\n\n'¿Estás buscando algo en particular o estás viendo qué te llama la atención?'\n\nLuego CALLA y escucha. No interrumpas. No ofrezcas opciones antes de entender qué quiere.\n\nLo que ella dice (y lo que NO dice) te da todo lo que necesitas para el siguiente paso."
+  },
+  {
+    titulo:"Paso 3 — COMPRENDER",
+    icono:"🧠",
+    contenido:"Comprende qué está buscando realmente. A veces lo que piden no es lo que necesitan.\n\nEjemplo: 'Busco algo cómodo para la playa' puede significar que quiere verse bien sin esfuerzo, que va a estar mucho tiempo al sol, o que no quiere gastar mucho.\n\nHaz una pregunta más si necesitas claridad:\n'¿Es para salir o más para estar en la playa?'\n'¿Tienes algún color favorito o algo que quieras evitar?'"
+  },
+  {
+    titulo:"Paso 4 — ASESORAR",
+    icono:"💡",
+    contenido:"Ahora sí hablas. Pero no de todas las opciones — de las dos o tres que realmente le sirven.\n\nSé honesta. Si algo no le queda bien, dilo con amabilidad:\n'Este modelo es muy lindo pero creo que este otro te va a favorecer más.'\n\nLa honestidad construye confianza. Una clienta que confía en ti vuelve y recomienda.\n\nNunca digas 'te queda perfecto' si no es verdad. Ella lo sabe."
+  },
+  {
+    titulo:"Paso 5 — INSPIRAR",
+    icono:"✨",
+    contenido:"El cierre no es presionar. Es inspirar.\n\nCuando ella se ve bien con algo, refleja eso:\n'Te queda increíble — la combinación de ese color con tu tono de piel es perfecta.'\n\nSugiere un accesorio que complete el look:\n'Con unos aretes así quedaría espectacular.'\n\nDeja que ella decida. Tu trabajo es que se sienta tan bien que decida sola."
+  },
+  {
+    titulo:"Upselling — El arte de sugerir más",
+    icono:"🎁",
+    contenido:"Upselling no es vender más por vender. Es ayudar a la clienta a llevarse una experiencia completa.\n\nReglas de oro:\n• Solo sugiere si realmente complementa lo que compró\n• Muéstralo físicamente — pon el collar con el vestido\n• Una sola sugerencia adicional, no tres\n• Si dice que no, acéptalo sin insistir\n\nEjemplo perfecto: vendiste una falda gitana azul → sugieres un scrunchie en tono tierra que contraste."
+  },
+  {
+    titulo:"Qué hacer cuando no compran",
+    icono:"🤝",
+    contenido:"El 'no compro hoy' no es un fracaso. Es una oportunidad.\n\nLo que debes lograr aunque no compre:\n• Que salga con una buena impresión de Hindica\n• Que recuerde tu nombre o tu cara\n• Que tenga ganas de volver\n\nCómo lograrlo:\n• 'No hay problema, si quieres después te guardamos algo.'\n• 'Si ves algo que te guste y no está tu talla, avísame.'\n• Sonríe genuinamente cuando se va."
+  },
+  {
+    titulo:"El tablero de accesorios",
+    icono:"💍",
+    contenido:"El tablero de accesorios es tu herramienta de exhibición más importante.\n\nReglas obligatorias:\n• Solo 1 de cada modelo en exhibición\n• Colores lo más variados posible — nunca dos del mismo color juntos\n• Si se vende algo, reemplázalo inmediatamente con otro del stock\n• El tablero debe verse lleno y ordenado siempre\n\nUn tablero bien organizado vende solo. Uno desordenado ahuyenta clientas."
+  },
+  {
+    titulo:"Manejo de caja y ventas",
+    icono:"💵",
+    contenido:"Responsabilidades con la caja:\n• Registra CADA venta en la app inmediatamente\n• Indica el medio de pago correcto (efectivo, transferencia, crédito, débito)\n• Para ventas de ropa: toma foto del estampado\n• Para joyería: toma foto clara de la pieza\n• Si sacas efectivo de la caja, regístralo siempre con motivo\n\nAl cierre: cuenta el efectivo físico y compáralo con lo esperado. Si hay diferencia, regístrala honestamente."
+  },
+];
+
+function ModoEntrenamiento({onBack}){
+  const [tab,setTab]=useState("principios");
+  const [manualIdx,setManualIdx]=useState(0);
+  const [quizMode,setQuizMode]=useState(false);
+
+  if(quizMode) return <QuizDiario seller="Entrenamiento" historial={[]} onComplete={()=>setQuizMode(false)}/>;
+
+  return(
+    <div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}>
+      <div style={{background:C.green,padding:"20px 20px 0"}}>
+        <button onClick={onBack} style={{background:"rgba(255,255,255,0.15)",border:"none",color:C.white,borderRadius:8,padding:"6px 14px",fontSize:14,cursor:"pointer",marginBottom:14,fontFamily:"inherit"}}>← Salir</button>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",letterSpacing:"3px",textTransform:"uppercase"}}>HINDICA</div>
+        <div style={{fontSize:22,fontWeight:800,color:C.white,marginTop:4,marginBottom:16}}>📚 Centro de Entrenamiento</div>
+        <div style={{display:"flex",gap:4}}>
+          {[{id:"principios",label:"Principios"},{id:"manual",label:"Manual de Ventas"},{id:"quiz",label:"Quiz"}].map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"10px 14px",borderRadius:"10px 10px 0 0",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,whiteSpace:"nowrap",background:tab===t.id?C.bg:"rgba(255,255,255,0.1)",color:tab===t.id?C.green:"rgba(255,255,255,0.7)"}}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{padding:"20px 20px 0"}}>
+        {tab==="principios"&&<>
+          <div style={{...sCard({background:"#E8F5EE",border:`1.5px solid ${C.green}`}),marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:800,color:C.green,marginBottom:4}}>Los 10 Principios Hindica</div>
+            <div style={{fontSize:13,color:C.muted}}>Lee y estudia estos principios. Los verás cada día al iniciar tu turno.</div>
+          </div>
+          {PRINCIPIOS.map((p,i)=>(
+            <div key={i} style={sCard()}>
+              <div style={{fontSize:11,color:C.orange,fontWeight:700,letterSpacing:"1px",textTransform:"uppercase",marginBottom:6}}>Principio {p.numero}</div>
+              <div style={{fontSize:16,fontWeight:800,color:C.dark,marginBottom:12}}>{p.titulo}</div>
+              <div style={{fontSize:14,color:C.text,lineHeight:1.7,whiteSpace:"pre-line"}}>{p.texto}</div>
+            </div>
+          ))}
+        </>}
+
+        {tab==="manual"&&<>
+          <div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+            {MANUAL_VENTAS.map((m,i)=>(
+              <button key={i} onClick={()=>setManualIdx(i)} style={{flexShrink:0,padding:"8px 14px",borderRadius:20,border:`2px solid ${manualIdx===i?C.green:C.border}`,background:manualIdx===i?C.green:C.white,color:manualIdx===i?C.white:C.text,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                {i+1}
+              </button>
+            ))}
+          </div>
+          <div style={sCard()}>
+            <div style={{fontSize:28,marginBottom:12}}>{MANUAL_VENTAS[manualIdx].icono}</div>
+            <div style={{fontSize:18,fontWeight:800,color:C.dark,marginBottom:16}}>{MANUAL_VENTAS[manualIdx].titulo}</div>
+            <div style={{fontSize:15,color:C.text,lineHeight:1.8,whiteSpace:"pre-line"}}>{MANUAL_VENTAS[manualIdx].contenido}</div>
+            <div style={{display:"flex",gap:12,marginTop:24}}>
+              {manualIdx>0&&<button onClick={()=>setManualIdx(i=>i-1)} style={{...sBtn(C.border),color:C.text,flex:1,borderRadius:12,padding:"14px"}}>← Anterior</button>}
+              {manualIdx<MANUAL_VENTAS.length-1&&<button onClick={()=>setManualIdx(i=>i+1)} style={{...sBtn(C.green,false),flex:1,borderRadius:12,padding:"14px"}}>Siguiente →</button>}
+            </div>
+          </div>
+          <div style={{...sCard({background:"#E8F5EE",border:`1.5px solid ${C.green}`})}}>
+            <div style={{fontSize:13,color:C.green,fontWeight:700}}>{manualIdx+1} de {MANUAL_VENTAS.length} capítulos</div>
+            <div style={{background:"rgba(0,0,0,0.08)",borderRadius:8,height:6,marginTop:8}}><div style={{background:C.green,height:6,borderRadius:8,width:`${((manualIdx+1)/MANUAL_VENTAS.length)*100}%`,transition:"width 0.3s"}}/></div>
+          </div>
+        </>}
+
+        {tab==="quiz"&&<>
+          <div style={{...sCard({background:"#E8F5EE",border:`1.5px solid ${C.green}`}),marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:800,color:C.green,marginBottom:4}}>🎯 Practica con el quiz</div>
+            <div style={{fontSize:13,color:C.muted,lineHeight:1.6}}>Pon a prueba lo que sabes sobre los principios Hindica. El quiz tiene 3 preguntas aleatorias. Puedes hacerlo las veces que quieras.</div>
+          </div>
+          <button onClick={()=>setQuizMode(true)} style={{...sBtn(C.green,true),padding:"20px",fontSize:18,borderRadius:16,marginBottom:20,display:"flex",alignItems:"center",justifyContent:"center",gap:12}}>
+            🎮 Empezar quiz
+          </button>
+          <div style={sCard()}>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>Todos los principios en resumen</div>
+            {PRINCIPIOS.map((p,i)=>(<div key={i} style={{padding:"10px 0",borderBottom:i<PRINCIPIOS.length-1?`1px solid ${C.border}`:"none"}}><div style={{fontSize:12,color:C.orange,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>Principio {p.numero}</div><div style={{fontSize:14,fontWeight:700,color:C.dark,marginTop:2}}>{p.titulo}</div></div>))}
+          </div>
+        </>}
       </div>
     </div>
   );
@@ -995,7 +1223,8 @@ export default function HindicaApp(){
 
   const W=c=><div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh"}}>{c}</div>;
 
-  if(mode==="selector")return W(<Selector onVendedora={()=>{setMode("vendedora");setScreen("login");}} onDuena={()=>setMode("duena_login")}/>);
+  if(mode==="selector")return W(<Selector onVendedora={()=>{setMode("vendedora");setScreen("login");}} onDuena={()=>setMode("duena_login")} onEntrenamiento={()=>setMode("entrenamiento")}/>);
+  if(mode==="entrenamiento")return W(<ModoEntrenamiento onBack={()=>setMode("selector")}/>);
   if(mode==="duena_login")return W(<LoginDuena duenaPin={duenaPin} onSuccess={()=>setMode("duena")} onBack={()=>setMode("selector")}/>);
   if(mode==="duena")return W(<PanelDuena allSales={allSales} allFlags={allFlags} allStock={allStock} setAllStock={setAllStock} vendedoras={vendedoras} setVendedoras={setVendedoras} duenaPin={duenaPin} setDuenaPin={setDuenaPin} tiendas={tiendas} setTiendas={setTiendas} ferias={ferias} setFerias={setFerias} quizStats={quizStats} onBack={()=>setMode("selector")}/>);
 
