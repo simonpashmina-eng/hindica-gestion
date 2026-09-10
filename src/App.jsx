@@ -1,77 +1,4 @@
-i
-const OBJECIONES = [
-  {
-    objecion: "Lo vi en Patronato más barato",
-    icono: "🏷️",
-    principio: "Nunca discutas el precio. Deja que ella misma se explique por qué el nuestro vale más.",
-    respuesta: "Suena a muy buen precio. ¿Y lo compraste?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Casi siempre dirá que no)" + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y por qué no?" + String.fromCharCode(10) + String.fromCharCode(10) + "Aquí ella sola te explicará: la tela era distinta, no le gustó tanto, no era igual. Ella misma justifica por qué el nuestro es mejor.",
-    noHacer: "No digas: pero el nuestro es de mejor calidad. No compares directamente. No te pongas a la defensiva."
-  },
-  {
-    objecion: "Lo voy a pensar",
-    icono: "🤔",
-    principio: "Normalmente significa que hay una duda concreta sin resolver. Tu trabajo es descubrir cuál.",
-    respuesta: "Claro, tómate tu tiempo. ¿Hay algo en particular que te haga dudar?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Escucha la respuesta real)" + String.fromCharCode(10) + String.fromCharCode(10) + "Si dice el precio: Te entiendo. Fíjate que este estampado es único, en Chile hay solo tres iguales." + String.fromCharCode(10) + String.fromCharCode(10) + "Si dice no sé si me queda: ¿Quieres probártelo de nuevo? A veces la segunda vez se ve distinto.",
-    noHacer: "No digas: bueno, aquí estaré. No la dejes ir sin entender la duda real."
-  },
-  {
-    objecion: "Tengo que preguntarle a mi pareja",
-    icono: "💬",
-    principio: "Respeta la decisión, pero facilita el sí.",
-    respuesta: "Por supuesto. ¿Quieres que te tome una foto con él puesto para mostrárselo?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Le tomas la foto)" + String.fromCharCode(10) + String.fromCharCode(10) + "Si quieres te lo guardo hasta mañana, sin compromiso. Así no lo pierdes mientras decides." + String.fromCharCode(10) + String.fromCharCode(10) + "Esto elimina el riesgo de perder la prenda y le da una razón concreta para volver.",
-    noHacer: "No preguntes si su pareja decide por ella. No la hagas sentir mal por consultar."
-  },
-  {
-    objecion: "Está muy caro",
-    icono: "💰",
-    principio: "El precio no se defiende. Se explica el valor.",
-    respuesta: "Te entiendo. Fíjate que cada prenda es hecha a mano en India, y de este estampado en particular llegan solo tres a todo Chile." + String.fromCharCode(10) + String.fromCharCode(10) + "No es ropa que vas a ver en otra persona." + String.fromCharCode(10) + String.fromCharCode(10) + "Si sigue dudando: ¿Sabías que tenemos el Club Hindica? Si te inscribes tienes precio de socia en todo, y el beneficio empieza hoy mismo.",
-    noHacer: "No te disculpes por el precio. No ofrezcas descuento inmediatamente."
-  },
-  {
-    objecion: "¿Me haces un descuento?",
-    icono: "🎁",
-    principio: "Nunca improvises descuentos. Redirige al Club.",
-    respuesta: "No manejamos descuentos, pero tenemos algo mejor: el Club Hindica." + String.fromCharCode(10) + String.fromCharCode(10) + "Te inscribes gratis, tienes precio de socia en todo, tres por dos en accesorios, y un regalo en tu cumpleaños." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Te inscribo ahora? Toma un minuto y el beneficio aplica hoy mismo.",
-    noHacer: "Nunca inventes un descuento por tu cuenta. Nunca digas déjame preguntar a la dueña."
-  },
-  {
-    objecion: "No estoy segura si me queda bien",
-    icono: "🪞",
-    principio: "Sé honesta. Si le queda bien, díselo con especificidad. Si no, ofrece otra opción.",
-    respuesta: "Si le queda bien:" + String.fromCharCode(10) + "Te queda increíble. Fíjate cómo ese azul te ilumina la cara. Y el largo con tu altura queda perfecto." + String.fromCharCode(10) + String.fromCharCode(10) + "Si no le queda bien:" + String.fromCharCode(10) + "Te soy honesta, creo que este otro modelo te va a favorecer más. ¿Te lo traigo para que lo compares?" + String.fromCharCode(10) + String.fromCharCode(10) + "La honestidad aquí construye una clienta de por vida.",
-    noHacer: "Nunca digas te queda perfecto si no es verdad. Ella lo sabe y pierdes su confianza para siempre."
-  },
-  {
-    objecion: "Voy a dar una vuelta y vuelvo",
-    icono: "🚶",
-    principio: "Déjala ir bien, pero dale una razón para volver.",
-    respuesta: "Dale, tranquila. ¿Quieres que te lo deje apartado mientras tanto?" + String.fromCharCode(10) + String.fromCharCode(10) + "Es que de este estampado tenemos solo este, y a veces se van rápido." + String.fromCharCode(10) + String.fromCharCode(10) + "Si dice que no: Perfecto, aquí estaré. Me llamo (tu nombre), pregunta por mí cuando vuelvas.",
-    noHacer: "No la presiones. No pongas cara de decepción. No digas bueno, ya."
-  },
-  {
-    objecion: "Ya tengo algo parecido",
-    icono: "👗",
-    principio: "Reconoce su gusto y muestra la diferencia.",
-    respuesta: "¡Qué bueno, entonces sabes que te queda bien ese estilo!" + String.fromCharCode(10) + String.fromCharCode(10) + "¿De qué color es el que tienes?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Escucha)" + String.fromCharCode(10) + String.fromCharCode(10) + "Este es totalmente distinto en estampado. Y como cada uno es único, nunca se van a ver iguales aunque sean el mismo modelo.",
-    noHacer: "No digas pero este es diferente sin preguntar primero qué tiene."
-  },
-  {
-    objecion: "No sé si lo voy a usar",
-    icono: "📅",
-    principio: "Ayúdala a visualizar una ocasión concreta.",
-    respuesta: "¿Tienes algún panorama pronto? ¿Un asado, un cumpleaños, vacaciones?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Escucha)" + String.fromCharCode(10) + String.fromCharCode(10) + "Para eso quedaría ideal. Y además es de esas prendas que sirven tanto para el día como para salir en la noche con unas sandalias." + String.fromCharCode(10) + String.fromCharCode(10) + "Le das permiso mental para justificar la compra.",
-    noHacer: "No digas seguro la vas a usar. Ayúdala a encontrar la ocasión ella misma."
-  },
-  {
-    objecion: "Está lindo pero no ahora",
-    icono: "⏳",
-    principio: "Entiende si es tema de plata o de momento.",
-    respuesta: "Te entiendo perfecto. ¿Te lo aparto para más adelante?" + String.fromCharCode(10) + String.fromCharCode(10) + "O si prefieres, inscríbete al Club Hindica ahora — es gratis — y así cuando vuelvas tienes precio de socia." + String.fromCharCode(10) + String.fromCharCode(10) + "Y te avisamos cuando lleguen cosas nuevas que te puedan gustar.",
-    noHacer: "No insistas. Convierte la visita en un dato para el Club."
-  },
-];
-mport { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const SUPABASE_URL = "https://cwjfxuelbzlxingxylfp.supabase.co";
 const SUPABASE_KEY = "sb_publishable_4Mex1P359ZgUxk2VmS1iRA_oAVwjGmc";
@@ -434,6 +361,79 @@ const MANUAL_VENTAS = [
   { titulo:"Objeciones sobre el Club", icono:"🛡️", contenido:"¿Me van a llenar de mensajes?" + String.fromCharCode(10) + "Para nada. Máximo 6 veces al año, y solo para cosas que valen la pena: eventos, colecciones nuevas y tu regalo de cumpleaños." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Tengo que pagar algo?" + String.fromCharCode(10) + "Nada. Es completamente gratis, para siempre." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Para qué quieren mis datos?" + String.fromCharCode(10) + "Para saber qué traer que te guste, invitarte a eventos cerca tuyo, y mandarte tu regalo de cumpleaños. No compartimos nada con nadie." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Tengo que comprar algo ahora?" + String.fromCharCode(10) + "No. Te inscribes ahora y usas tus beneficios cuando quieras." },
   { titulo:"Preguntas frecuentes", icono:"❓", contenido:"¿Y si no sé el precio de algo?" + String.fromCharCode(10) + "Pregunta o busca en la app. Nunca inventes un precio." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si una clienta se enoja?" + String.fromCharCode(10) + "Calmada y amable. Si se complica, avisa a la dueña." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si me equivoco en una venta?" + String.fromCharCode(10) + "Avisa a la dueña de inmediato. Siempre hay solución." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si la caja no cuadra?" + String.fromCharCode(10) + "Sé honesta. Anota la diferencia real." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si llego tarde?" + String.fromCharCode(10) + "Avisa ANTES. Siempre." },
 ];
+const OBJECIONES = [
+  {
+    objecion: "Lo vi en Patronato más barato",
+    icono: "🏷️",
+    principio: "Nunca discutas el precio. Deja que ella misma se explique por qué el nuestro vale más.",
+    respuesta: "Suena a muy buen precio. ¿Y lo compraste?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Casi siempre dirá que no)" + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y por qué no?" + String.fromCharCode(10) + String.fromCharCode(10) + "Aquí ella sola te explicará: la tela era distinta, no le gustó tanto, no era igual. Ella misma justifica por qué el nuestro es mejor.",
+    noHacer: "No digas: pero el nuestro es de mejor calidad. No compares directamente. No te pongas a la defensiva."
+  },
+  {
+    objecion: "Lo voy a pensar",
+    icono: "🤔",
+    principio: "Normalmente significa que hay una duda concreta sin resolver. Tu trabajo es descubrir cuál.",
+    respuesta: "Claro, tómate tu tiempo. ¿Hay algo en particular que te haga dudar?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Escucha la respuesta real)" + String.fromCharCode(10) + String.fromCharCode(10) + "Si dice el precio: Te entiendo. Fíjate que este estampado es único, en Chile hay solo tres iguales." + String.fromCharCode(10) + String.fromCharCode(10) + "Si dice no sé si me queda: ¿Quieres probártelo de nuevo? A veces la segunda vez se ve distinto.",
+    noHacer: "No digas: bueno, aquí estaré. No la dejes ir sin entender la duda real."
+  },
+  {
+    objecion: "Tengo que preguntarle a mi pareja",
+    icono: "💬",
+    principio: "Respeta la decisión, pero facilita el sí.",
+    respuesta: "Por supuesto. ¿Quieres que te tome una foto con él puesto para mostrárselo?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Le tomas la foto)" + String.fromCharCode(10) + String.fromCharCode(10) + "Si quieres te lo guardo hasta mañana, sin compromiso. Así no lo pierdes mientras decides." + String.fromCharCode(10) + String.fromCharCode(10) + "Esto elimina el riesgo de perder la prenda y le da una razón concreta para volver.",
+    noHacer: "No preguntes si su pareja decide por ella. No la hagas sentir mal por consultar."
+  },
+  {
+    objecion: "Está muy caro",
+    icono: "💰",
+    principio: "El precio no se defiende. Se explica el valor.",
+    respuesta: "Te entiendo. Fíjate que cada prenda es hecha a mano en India, y de este estampado en particular llegan solo tres a todo Chile." + String.fromCharCode(10) + String.fromCharCode(10) + "No es ropa que vas a ver en otra persona." + String.fromCharCode(10) + String.fromCharCode(10) + "Si sigue dudando: ¿Sabías que tenemos el Club Hindica? Si te inscribes tienes precio de socia en todo, y el beneficio empieza hoy mismo.",
+    noHacer: "No te disculpes por el precio. No ofrezcas descuento inmediatamente."
+  },
+  {
+    objecion: "¿Me haces un descuento?",
+    icono: "🎁",
+    principio: "Nunca improvises descuentos. Redirige al Club.",
+    respuesta: "No manejamos descuentos, pero tenemos algo mejor: el Club Hindica." + String.fromCharCode(10) + String.fromCharCode(10) + "Te inscribes gratis, tienes precio de socia en todo, tres por dos en accesorios, y un regalo en tu cumpleaños." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Te inscribo ahora? Toma un minuto y el beneficio aplica hoy mismo.",
+    noHacer: "Nunca inventes un descuento por tu cuenta. Nunca digas déjame preguntar a la dueña."
+  },
+  {
+    objecion: "No estoy segura si me queda bien",
+    icono: "🪞",
+    principio: "Sé honesta. Si le queda bien, díselo con especificidad. Si no, ofrece otra opción.",
+    respuesta: "Si le queda bien:" + String.fromCharCode(10) + "Te queda increíble. Fíjate cómo ese azul te ilumina la cara. Y el largo con tu altura queda perfecto." + String.fromCharCode(10) + String.fromCharCode(10) + "Si no le queda bien:" + String.fromCharCode(10) + "Te soy honesta, creo que este otro modelo te va a favorecer más. ¿Te lo traigo para que lo compares?" + String.fromCharCode(10) + String.fromCharCode(10) + "La honestidad aquí construye una clienta de por vida.",
+    noHacer: "Nunca digas te queda perfecto si no es verdad. Ella lo sabe y pierdes su confianza para siempre."
+  },
+  {
+    objecion: "Voy a dar una vuelta y vuelvo",
+    icono: "🚶",
+    principio: "Déjala ir bien, pero dale una razón para volver.",
+    respuesta: "Dale, tranquila. ¿Quieres que te lo deje apartado mientras tanto?" + String.fromCharCode(10) + String.fromCharCode(10) + "Es que de este estampado tenemos solo este, y a veces se van rápido." + String.fromCharCode(10) + String.fromCharCode(10) + "Si dice que no: Perfecto, aquí estaré. Me llamo (tu nombre), pregunta por mí cuando vuelvas.",
+    noHacer: "No la presiones. No pongas cara de decepción. No digas bueno, ya."
+  },
+  {
+    objecion: "Ya tengo algo parecido",
+    icono: "👗",
+    principio: "Reconoce su gusto y muestra la diferencia.",
+    respuesta: "¡Qué bueno, entonces sabes que te queda bien ese estilo!" + String.fromCharCode(10) + String.fromCharCode(10) + "¿De qué color es el que tienes?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Escucha)" + String.fromCharCode(10) + String.fromCharCode(10) + "Este es totalmente distinto en estampado. Y como cada uno es único, nunca se van a ver iguales aunque sean el mismo modelo.",
+    noHacer: "No digas pero este es diferente sin preguntar primero qué tiene."
+  },
+  {
+    objecion: "No sé si lo voy a usar",
+    icono: "📅",
+    principio: "Ayúdala a visualizar una ocasión concreta.",
+    respuesta: "¿Tienes algún panorama pronto? ¿Un asado, un cumpleaños, vacaciones?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Escucha)" + String.fromCharCode(10) + String.fromCharCode(10) + "Para eso quedaría ideal. Y además es de esas prendas que sirven tanto para el día como para salir en la noche con unas sandalias." + String.fromCharCode(10) + String.fromCharCode(10) + "Le das permiso mental para justificar la compra.",
+    noHacer: "No digas seguro la vas a usar. Ayúdala a encontrar la ocasión ella misma."
+  },
+  {
+    objecion: "Está lindo pero no ahora",
+    icono: "⏳",
+    principio: "Entiende si es tema de plata o de momento.",
+    respuesta: "Te entiendo perfecto. ¿Te lo aparto para más adelante?" + String.fromCharCode(10) + String.fromCharCode(10) + "O si prefieres, inscríbete al Club Hindica ahora — es gratis — y así cuando vuelvas tienes precio de socia." + String.fromCharCode(10) + String.fromCharCode(10) + "Y te avisamos cuando lleguen cosas nuevas que te puedan gustar.",
+    noHacer: "No insistas. Convierte la visita en un dato para el Club."
+  },
+];
+
 function ModoEntrenamiento({onBack}){
   const [tab,setTab]=useState("principios");
   const [manualIdx,setManualIdx]=useState(0);
