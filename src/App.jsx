@@ -1,4 +1,77 @@
-import { useState, useEffect, useRef } from "react";
+i
+const OBJECIONES = [
+  {
+    objecion: "Lo vi en Patronato más barato",
+    icono: "🏷️",
+    principio: "Nunca discutas el precio. Deja que ella misma se explique por qué el nuestro vale más.",
+    respuesta: "Suena a muy buen precio. ¿Y lo compraste?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Casi siempre dirá que no)" + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y por qué no?" + String.fromCharCode(10) + String.fromCharCode(10) + "Aquí ella sola te explicará: la tela era distinta, no le gustó tanto, no era igual. Ella misma justifica por qué el nuestro es mejor.",
+    noHacer: "No digas: pero el nuestro es de mejor calidad. No compares directamente. No te pongas a la defensiva."
+  },
+  {
+    objecion: "Lo voy a pensar",
+    icono: "🤔",
+    principio: "Normalmente significa que hay una duda concreta sin resolver. Tu trabajo es descubrir cuál.",
+    respuesta: "Claro, tómate tu tiempo. ¿Hay algo en particular que te haga dudar?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Escucha la respuesta real)" + String.fromCharCode(10) + String.fromCharCode(10) + "Si dice el precio: Te entiendo. Fíjate que este estampado es único, en Chile hay solo tres iguales." + String.fromCharCode(10) + String.fromCharCode(10) + "Si dice no sé si me queda: ¿Quieres probártelo de nuevo? A veces la segunda vez se ve distinto.",
+    noHacer: "No digas: bueno, aquí estaré. No la dejes ir sin entender la duda real."
+  },
+  {
+    objecion: "Tengo que preguntarle a mi pareja",
+    icono: "💬",
+    principio: "Respeta la decisión, pero facilita el sí.",
+    respuesta: "Por supuesto. ¿Quieres que te tome una foto con él puesto para mostrárselo?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Le tomas la foto)" + String.fromCharCode(10) + String.fromCharCode(10) + "Si quieres te lo guardo hasta mañana, sin compromiso. Así no lo pierdes mientras decides." + String.fromCharCode(10) + String.fromCharCode(10) + "Esto elimina el riesgo de perder la prenda y le da una razón concreta para volver.",
+    noHacer: "No preguntes si su pareja decide por ella. No la hagas sentir mal por consultar."
+  },
+  {
+    objecion: "Está muy caro",
+    icono: "💰",
+    principio: "El precio no se defiende. Se explica el valor.",
+    respuesta: "Te entiendo. Fíjate que cada prenda es hecha a mano en India, y de este estampado en particular llegan solo tres a todo Chile." + String.fromCharCode(10) + String.fromCharCode(10) + "No es ropa que vas a ver en otra persona." + String.fromCharCode(10) + String.fromCharCode(10) + "Si sigue dudando: ¿Sabías que tenemos el Club Hindica? Si te inscribes tienes precio de socia en todo, y el beneficio empieza hoy mismo.",
+    noHacer: "No te disculpes por el precio. No ofrezcas descuento inmediatamente."
+  },
+  {
+    objecion: "¿Me haces un descuento?",
+    icono: "🎁",
+    principio: "Nunca improvises descuentos. Redirige al Club.",
+    respuesta: "No manejamos descuentos, pero tenemos algo mejor: el Club Hindica." + String.fromCharCode(10) + String.fromCharCode(10) + "Te inscribes gratis, tienes precio de socia en todo, tres por dos en accesorios, y un regalo en tu cumpleaños." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Te inscribo ahora? Toma un minuto y el beneficio aplica hoy mismo.",
+    noHacer: "Nunca inventes un descuento por tu cuenta. Nunca digas déjame preguntar a la dueña."
+  },
+  {
+    objecion: "No estoy segura si me queda bien",
+    icono: "🪞",
+    principio: "Sé honesta. Si le queda bien, díselo con especificidad. Si no, ofrece otra opción.",
+    respuesta: "Si le queda bien:" + String.fromCharCode(10) + "Te queda increíble. Fíjate cómo ese azul te ilumina la cara. Y el largo con tu altura queda perfecto." + String.fromCharCode(10) + String.fromCharCode(10) + "Si no le queda bien:" + String.fromCharCode(10) + "Te soy honesta, creo que este otro modelo te va a favorecer más. ¿Te lo traigo para que lo compares?" + String.fromCharCode(10) + String.fromCharCode(10) + "La honestidad aquí construye una clienta de por vida.",
+    noHacer: "Nunca digas te queda perfecto si no es verdad. Ella lo sabe y pierdes su confianza para siempre."
+  },
+  {
+    objecion: "Voy a dar una vuelta y vuelvo",
+    icono: "🚶",
+    principio: "Déjala ir bien, pero dale una razón para volver.",
+    respuesta: "Dale, tranquila. ¿Quieres que te lo deje apartado mientras tanto?" + String.fromCharCode(10) + String.fromCharCode(10) + "Es que de este estampado tenemos solo este, y a veces se van rápido." + String.fromCharCode(10) + String.fromCharCode(10) + "Si dice que no: Perfecto, aquí estaré. Me llamo (tu nombre), pregunta por mí cuando vuelvas.",
+    noHacer: "No la presiones. No pongas cara de decepción. No digas bueno, ya."
+  },
+  {
+    objecion: "Ya tengo algo parecido",
+    icono: "👗",
+    principio: "Reconoce su gusto y muestra la diferencia.",
+    respuesta: "¡Qué bueno, entonces sabes que te queda bien ese estilo!" + String.fromCharCode(10) + String.fromCharCode(10) + "¿De qué color es el que tienes?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Escucha)" + String.fromCharCode(10) + String.fromCharCode(10) + "Este es totalmente distinto en estampado. Y como cada uno es único, nunca se van a ver iguales aunque sean el mismo modelo.",
+    noHacer: "No digas pero este es diferente sin preguntar primero qué tiene."
+  },
+  {
+    objecion: "No sé si lo voy a usar",
+    icono: "📅",
+    principio: "Ayúdala a visualizar una ocasión concreta.",
+    respuesta: "¿Tienes algún panorama pronto? ¿Un asado, un cumpleaños, vacaciones?" + String.fromCharCode(10) + String.fromCharCode(10) + "(Escucha)" + String.fromCharCode(10) + String.fromCharCode(10) + "Para eso quedaría ideal. Y además es de esas prendas que sirven tanto para el día como para salir en la noche con unas sandalias." + String.fromCharCode(10) + String.fromCharCode(10) + "Le das permiso mental para justificar la compra.",
+    noHacer: "No digas seguro la vas a usar. Ayúdala a encontrar la ocasión ella misma."
+  },
+  {
+    objecion: "Está lindo pero no ahora",
+    icono: "⏳",
+    principio: "Entiende si es tema de plata o de momento.",
+    respuesta: "Te entiendo perfecto. ¿Te lo aparto para más adelante?" + String.fromCharCode(10) + String.fromCharCode(10) + "O si prefieres, inscríbete al Club Hindica ahora — es gratis — y así cuando vuelvas tienes precio de socia." + String.fromCharCode(10) + String.fromCharCode(10) + "Y te avisamos cuando lleguen cosas nuevas que te puedan gustar.",
+    noHacer: "No insistas. Convierte la visita en un dato para el Club."
+  },
+];
+mport { useState, useEffect, useRef } from "react";
 
 const SUPABASE_URL = "https://cwjfxuelbzlxingxylfp.supabase.co";
 const SUPABASE_KEY = "sb_publishable_4Mex1P359ZgUxk2VmS1iRA_oAVwjGmc";
@@ -84,6 +157,19 @@ const PREGUNTAS = [
   {p:6,q:"Las personas recuerdan principalmente...",ops:["Los precios","Cómo las hicieron sentir","Los productos disponibles","Las ofertas del día"],c:1},
   {p:9,q:"Recordar el nombre de una clienta es...",ops:["Innecesario","Un pequeño detalle que hace la diferencia","Imposible cuando hay mucha gente","Solo para clientas frecuentes"],c:1},
   {p:8,q:"Sugerir accesorios a una clienta se hace...",ops:["Para vender más a toda costa","Pensando en ayudarla a verse aún mejor","Solo si parece tener dinero","Solo si pregunta por accesorios"],c:1},
+  {p:0,q:"Una clienta dice: Lo vi en Patronato más barato. ¿Qué respondes?",ops:["Pero el nuestro es de mejor calidad","Suena a muy buen precio. ¿Y lo compraste?","Los precios de Patronato son distintos","Puedo hacerte un descuento"],c:1},
+  {p:0,q:"Una clienta dice: Lo voy a pensar. ¿Qué haces?",ops:["Le dices que aquí estarás","Le preguntas si hay algo en particular que la haga dudar","Le ofreces un descuento","La dejas ir sin decir nada"],c:1},
+  {p:0,q:"Una clienta pide un descuento. ¿Qué haces?",ops:["Le das un 10% para cerrar la venta","Le dices que preguntarás a la dueña","Le ofreces inscribirse al Club Hindica","Le dices que no y punto"],c:2},
+  {p:0,q:"Una clienta dice: Tengo que preguntarle a mi pareja. ¿Cuál es la mejor respuesta?",ops:["¿Él decide por ti?","¿Quieres que te tome una foto para mostrarle?","Bueno, aquí estaré","Es tu decisión, no la de él"],c:1},
+  {p:0,q:"Una clienta dice que está muy caro. ¿Qué NO debes hacer?",ops:["Explicar que es hecho a mano en India","Mencionar que el estampado es único","Disculparte por el precio y ofrecer descuento","Ofrecerle el Club Hindica"],c:2},
+  {p:0,q:"Una clienta se prueba algo que NO le queda bien. ¿Qué haces?",ops:["Le dices que le queda perfecto","Le dices honestamente que otro modelo la favorece más","No dices nada","Le dices que es cuestión de gustos"],c:1},
+  {p:0,q:"¿Cuál es el principio al responder Lo vi más barato en otro lado?",ops:["Defender nuestro precio","Comparar calidades","Dejar que ella misma explique por qué no lo compró","Ofrecer igualar el precio"],c:2},
+  {p:0,q:"Una clienta dice: Voy a dar una vuelta y vuelvo. ¿Qué haces?",ops:["Pones cara de decepción","Le ofreces apartárselo y le das tu nombre","Le dices que se va a ir rápido","La sigues hasta la puerta insistiendo"],c:1},
+  {p:0,q:"¿Cuánto cuesta inscribirse al Club Hindica?",ops:["$5.000 al año","Es gratis, para siempre","Depende de cuánto compre","Solo la primera compra"],c:1},
+  {p:0,q:"¿Cuántos mensajes al año recibe una socia como máximo?",ops:["Los que sean necesarios","Uno por mes","Máximo 6 al año","Solo en su cumpleaños"],c:2},
+  {p:0,q:"Una socia cumple años pero no quiere comprar nada. ¿Recibe su regalo?",ops:["No, tiene que comprar algo","Sí, el regalo no requiere compra","Solo si compró ese año","Solo si viene el día exacto"],c:1},
+  {p:0,q:"¿Cuándo se activa la membresía del Club?",ops:["Al inscribirse","Con su primera compra","Al mes de inscribirse","Cuando la dueña lo aprueba"],c:1},
+  {p:0,q:"¿Cuál es el beneficio en accesorios para socias?",ops:["50% de descuento","3 x 2 — lleva tres, paga dos","2 x 1","Sin beneficio en accesorios"],c:1},
 ];
 
 const C={bg:"#FAF7F2",dark:"#1C3A2E",orange:"#E8621F",purple:"#8B3A7E",gold:"#C9963E",text:"#1A1A1A",muted:"#7A7065",border:"#DDD5C8",green:"#2D7A45",red:"#C0392B",white:"#FFFFFF"};
@@ -342,12 +428,19 @@ const MANUAL_VENTAS = [
   { titulo:"Upselling", icono:"🎁", contenido:"Upselling es ayudar a la clienta a llevarse una experiencia completa." + String.fromCharCode(10) + String.fromCharCode(10) + "Reglas de oro:" + String.fromCharCode(10) + "• Solo sugiere si realmente complementa lo que compró" + String.fromCharCode(10) + "• Muéstralo físicamente — pon el collar con el vestido" + String.fromCharCode(10) + "• Una sola sugerencia, no tres" + String.fromCharCode(10) + "• Si dice que no, acéptalo sin insistir" + String.fromCharCode(10) + String.fromCharCode(10) + "Ejemplo: vendiste falda gitana azul → sugiere scrunchie en tono tierra" },
   { titulo:"Comportamiento en la tienda", icono:"⭐", contenido:"Presentación:" + String.fromCharCode(10) + "• Llega siempre a la hora acordada" + String.fromCharCode(10) + "• Vístete acorde al estilo Hindica" + String.fromCharCode(10) + "• Sin teléfono en la mano mientras hay clientas" + String.fromCharCode(10) + String.fromCharCode(10) + "Actitud:" + String.fromCharCode(10) + "• Saluda a CADA persona que entra" + String.fromCharCode(10) + "• Si tienes un mal día, déjalo afuera" + String.fromCharCode(10) + "• Trata a la dueña con honestidad siempre" + String.fromCharCode(10) + String.fromCharCode(10) + "Con compañeras:" + String.fromCharCode(10) + "• No dos encima de la misma clienta" + String.fromCharCode(10) + "• Diferencias: háblalo entre ustedes, nunca delante de clientas" },
   { titulo:"Qué hacer y qué NO hacer", icono:"📋", contenido:"✅ SÍ hacer:" + String.fromCharCode(10) + "• Registrar cada venta inmediatamente" + String.fromCharCode(10) + "• Saludar a todas las clientas" + String.fromCharCode(10) + "• Ser honesta con la caja siempre" + String.fromCharCode(10) + "• Avisar si falta algo antes de que sea problema" + String.fromCharCode(10) + "• Dejar la tienda ordenada siempre" + String.fromCharCode(10) + String.fromCharCode(10) + "❌ NO hacer:" + String.fromCharCode(10) + "• Cobrar sin registrar en la app" + String.fromCharCode(10) + "• Guardar efectivo fuera de la caja" + String.fromCharCode(10) + "• Decir te queda perfecto si no es verdad" + String.fromCharCode(10) + "• Ignorar los avisos de la app" + String.fromCharCode(10) + "• Salir sin completar el cierre" },
+  { titulo:"El Club Hindica — Qué es", icono:"🌿", contenido:"El Club Hindica es nuestro programa de socias. Es gratis y para siempre." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Para qué existe? Para conocer mejor a nuestras clientas, mantener el contacto, y premiar a las que vuelven." + String.fromCharCode(10) + String.fromCharCode(10) + "Beneficios de una socia:" + String.fromCharCode(10) + "• Precio de socia en toda la ropa" + String.fromCharCode(10) + "• 3 x 2 en accesorios" + String.fromCharCode(10) + "• Regalo de cumpleaños, sin comprar nada" + String.fromCharCode(10) + "• Máximo 6 mensajes al año" + String.fromCharCode(10) + "• Eventos exclusivos e invitaciones" + String.fromCharCode(10) + "• Acceso anticipado a colecciones y liquidaciones" + String.fromCharCode(10) + String.fromCharCode(10) + "Cada socia tiene un número, empezando en el 1001." },
+  { titulo:"Cómo inscribir a una clienta", icono:"📲", contenido:"Es muy simple:" + String.fromCharCode(10) + String.fromCharCode(10) + "1. Le muestras el cartel con el código QR" + String.fromCharCode(10) + "2. Ella lo escanea con la cámara de su teléfono" + String.fromCharCode(10) + "3. Llena el formulario — toma menos de un minuto" + String.fromCharCode(10) + "4. Recibe su número de socia en pantalla" + String.fromCharCode(10) + "5. Te muestra el número y tú lo ingresas en la venta" + String.fromCharCode(10) + String.fromCharCode(10) + "La membresía se activa con su primera compra. Puede inscribirse hoy y comprar otro día — el número queda guardado." + String.fromCharCode(10) + String.fromCharCode(10) + "Si tiene problemas con el QR, puedes inscribirla tú desde la app en Buscar socia." },
+  { titulo:"Cómo ofrecer el Club", icono:"💬", contenido:"El mejor momento es cuando está decidiendo o al momento de pagar." + String.fromCharCode(10) + String.fromCharCode(10) + "Frases que funcionan:" + String.fromCharCode(10) + String.fromCharCode(10) + "Al momento de pagar:" + String.fromCharCode(10) + "¿Ya eres socia del Club Hindica? Es gratis y tendrías precio de socia en esto mismo." + String.fromCharCode(10) + String.fromCharCode(10) + "Si pide descuento:" + String.fromCharCode(10) + "No manejamos descuentos, pero tenemos algo mejor. Te inscribo al Club y tienes precio de socia hoy mismo." + String.fromCharCode(10) + String.fromCharCode(10) + "Si dice que lo va a pensar:" + String.fromCharCode(10) + "Inscríbete al Club mientras tanto, es gratis. Así cuando vuelvas ya tienes tu precio." + String.fromCharCode(10) + String.fromCharCode(10) + "Nunca presiones. Explica el beneficio y deja que ella decida." },
+  { titulo:"Objeciones sobre el Club", icono:"🛡️", contenido:"¿Me van a llenar de mensajes?" + String.fromCharCode(10) + "Para nada. Máximo 6 veces al año, y solo para cosas que valen la pena: eventos, colecciones nuevas y tu regalo de cumpleaños." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Tengo que pagar algo?" + String.fromCharCode(10) + "Nada. Es completamente gratis, para siempre." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Para qué quieren mis datos?" + String.fromCharCode(10) + "Para saber qué traer que te guste, invitarte a eventos cerca tuyo, y mandarte tu regalo de cumpleaños. No compartimos nada con nadie." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Tengo que comprar algo ahora?" + String.fromCharCode(10) + "No. Te inscribes ahora y usas tus beneficios cuando quieras." },
   { titulo:"Preguntas frecuentes", icono:"❓", contenido:"¿Y si no sé el precio de algo?" + String.fromCharCode(10) + "Pregunta o busca en la app. Nunca inventes un precio." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si una clienta se enoja?" + String.fromCharCode(10) + "Calmada y amable. Si se complica, avisa a la dueña." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si me equivoco en una venta?" + String.fromCharCode(10) + "Avisa a la dueña de inmediato. Siempre hay solución." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si la caja no cuadra?" + String.fromCharCode(10) + "Sé honesta. Anota la diferencia real." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si llego tarde?" + String.fromCharCode(10) + "Avisa ANTES. Siempre." },
 ];
 function ModoEntrenamiento({onBack}){
   const [tab,setTab]=useState("principios");
   const [manualIdx,setManualIdx]=useState(0);
   const [quizMode,setQuizMode]=useState(false);
+  const [objIdx,setObjIdx]=useState(null);
+  const [nuevaObj,setNuevaObj]=useState("");
+  const [objEnviada,setObjEnviada]=useState(false);
 
   if(quizMode) return <QuizDiario seller="Entrenamiento" historial={[]} onComplete={()=>setQuizMode(false)}/>;
 
@@ -358,7 +451,7 @@ function ModoEntrenamiento({onBack}){
         <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",letterSpacing:"3px",textTransform:"uppercase"}}>HINDICA</div>
         <div style={{fontSize:22,fontWeight:800,color:C.white,marginTop:4,marginBottom:16}}>📚 Centro de Entrenamiento</div>
         <div style={{display:"flex",gap:4}}>
-          {[{id:"principios",label:"Principios"},{id:"manual",label:"Manual de Ventas"},{id:"quiz",label:"Quiz"}].map(t=>(
+          {[{id:"principios",label:"Principios"},{id:"manual",label:"Manual"},{id:"objeciones",label:"Objeciones"},{id:"quiz",label:"Quiz"}].map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"10px 14px",borderRadius:"10px 10px 0 0",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,whiteSpace:"nowrap",background:tab===t.id?C.bg:"rgba(255,255,255,0.1)",color:tab===t.id?C.green:"rgba(255,255,255,0.7)"}}>
               {t.label}
             </button>
@@ -402,6 +495,73 @@ function ModoEntrenamiento({onBack}){
             <div style={{fontSize:13,color:C.green,fontWeight:700}}>{manualIdx+1} de {MANUAL_VENTAS.length} capítulos</div>
             <div style={{background:"rgba(0,0,0,0.08)",borderRadius:8,height:6,marginTop:8}}><div style={{background:C.green,height:6,borderRadius:8,width:`${((manualIdx+1)/MANUAL_VENTAS.length)*100}%`,transition:"width 0.3s"}}/></div>
           </div>
+        </>}
+
+        {tab==="objeciones"&&<>
+          <div style={{...sCard({background:"#FEF8F3",border:`1.5px solid ${C.orange}`}),marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:800,color:C.orange,marginBottom:6}}>🛡️ Cómo responder objeciones</div>
+            <div style={{fontSize:13,color:C.muted,lineHeight:1.6}}>Las objeciones no son un rechazo. Son una duda sin resolver. Aquí aprendes a responder cada una sin presionar y sin discutir.</div>
+          </div>
+
+          {objIdx===null ? (
+            <>
+              {OBJECIONES.map((o,i)=>(
+                <div key={i} onClick={()=>setObjIdx(i)} style={{...sCard({padding:16}),cursor:"pointer",display:"flex",alignItems:"center",gap:14}}>
+                  <span style={{fontSize:26,flexShrink:0}}>{o.icono}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:3}}>La clienta dice</div>
+                    <div style={{fontSize:15,fontWeight:700,color:C.dark}}>"{o.objecion}"</div>
+                  </div>
+                  <span style={{fontSize:20,color:C.muted}}>→</span>
+                </div>
+              ))}
+
+              <div style={{...sCard({background:"#EEF4F1",border:`1.5px solid ${C.dark}`}),marginTop:20}}>
+                <div style={{fontSize:15,fontWeight:800,color:C.dark,marginBottom:6}}>💡 ¿Escuchaste una objeción nueva?</div>
+                <div style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>Si una clienta te dijo algo para lo que no tenías respuesta, cuéntanoslo. Lo agregaremos al entrenamiento de todas.</div>
+                {objEnviada ? (
+                  <div style={{background:"#E8F5EE",borderRadius:10,padding:14,fontSize:14,color:C.green,fontWeight:700}}>
+                    ✓ ¡Gracias! La dueña lo revisará y agregará una respuesta al entrenamiento.
+                  </div>
+                ) : (
+                  <>
+                    <textarea style={{...sInput,height:90,resize:"none",marginBottom:10}} placeholder="Ej: Una clienta me dijo que prefiere comprar por Instagram..." value={nuevaObj} onChange={e=>setNuevaObj(e.target.value)}/>
+                    <button disabled={!nuevaObj.trim()} onClick={()=>{setObjEnviada(true);setNuevaObj("");setTimeout(()=>setObjEnviada(false),4000);}} style={{...sBtn(nuevaObj.trim()?C.dark:C.border,true),borderRadius:10,padding:"13px",fontSize:15,opacity:nuevaObj.trim()?1:0.5}}>
+                      Enviar objeción a la dueña
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <button onClick={()=>setObjIdx(null)} style={{...sBtn(C.border),color:C.text,borderRadius:10,padding:"10px 16px",fontSize:14,marginBottom:16}}>← Todas las objeciones</button>
+              <div style={sCard()}>
+                <div style={{fontSize:32,marginBottom:10}}>{OBJECIONES[objIdx].icono}</div>
+                <div style={{fontSize:11,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",marginBottom:6}}>La clienta dice</div>
+                <div style={{fontSize:20,fontWeight:800,color:C.dark,marginBottom:20,lineHeight:1.3}}>"{OBJECIONES[objIdx].objecion}"</div>
+
+                <div style={{background:"#FEF8F3",borderRadius:12,padding:16,marginBottom:16}}>
+                  <div style={{fontSize:11,color:C.orange,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",marginBottom:6}}>El principio</div>
+                  <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{OBJECIONES[objIdx].principio}</div>
+                </div>
+
+                <div style={{background:"#E8F5EE",borderRadius:12,padding:16,marginBottom:16}}>
+                  <div style={{fontSize:11,color:C.green,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>✓ Qué decir</div>
+                  <div style={{fontSize:15,color:C.text,lineHeight:1.8,whiteSpace:"pre-line"}}>{OBJECIONES[objIdx].respuesta}</div>
+                </div>
+
+                <div style={{background:"#FDECEA",borderRadius:12,padding:16}}>
+                  <div style={{fontSize:11,color:C.red,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",marginBottom:6}}>✗ Qué NO hacer</div>
+                  <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{OBJECIONES[objIdx].noHacer}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:12}}>
+                {objIdx>0&&<button onClick={()=>setObjIdx(i=>i-1)} style={{...sBtn(C.border),color:C.text,flex:1,borderRadius:12,padding:"14px"}}>← Anterior</button>}
+                {objIdx<OBJECIONES.length-1&&<button onClick={()=>setObjIdx(i=>i+1)} style={{...sBtn(C.orange),flex:1,borderRadius:12,padding:"14px"}}>Siguiente →</button>}
+              </div>
+            </>
+          )}
         </>}
 
         {tab==="quiz"&&<>
@@ -637,6 +797,16 @@ function PanelDuena({allSales,allFlags,allStock,setAllStock,vendedoras,setVended
   const [filtroUbicacion,setFiltroUbicacion]=useState("todo");
   const [filtroTipo,setFiltroTipo]=useState("todo");
   const [busqueda,setBusqueda]=useState("");
+  const [socias,setSocias]=useState([]);
+  const [cargandoSocias,setCargandoSocias]=useState(false);
+  const [busquedaSocia,setBusquedaSocia]=useState("");
+  const [filtroSocia,setFiltroSocia]=useState("todas");
+
+  useEffect(()=>{
+    if(tab!=="socias"||socias.length>0)return;
+    setCargandoSocias(true);
+    db.get("socias",{}).then(r=>{ if(Array.isArray(r))setSocias(r.sort((a,b)=>b.numero_socia-a.numero_socia)); setCargandoSocias(false); }).catch(()=>setCargandoSocias(false));
+  },[tab]);
 
   const totalHoy=allSales.reduce((a,s)=>a+s.precio,0);
   const byTienda=tiendas.map(t=>({tienda:t,ventas:allSales.filter(s=>s.tienda===t),total:allSales.filter(s=>s.tienda===t).reduce((a,s)=>a+s.precio,0)}));
@@ -683,7 +853,7 @@ function PanelDuena({allSales,allFlags,allStock,setAllStock,vendedoras,setVended
     setSubScreen("");
   };
 
-  const tabs=[{id:"hoy",label:"Hoy"},{id:"alertas",label:`Alertas${allFlags.length>0?` (${allFlags.length})`:""}`},{id:"ventas",label:"Ventas"},{id:"inventario",label:"Inventario"},{id:"formacion",label:"Formación"},{id:"reposicion",label:"Reposición"},{id:"config",label:"⚙️"}];
+  const tabs=[{id:"hoy",label:"Hoy"},{id:"alertas",label:`Alertas${allFlags.length>0?` (${allFlags.length})`:""}`},{id:"ventas",label:"Ventas"},{id:"inventario",label:"Inventario"},{id:"socias",label:"Socias"},{id:"formacion",label:"Formación"},{id:"reposicion",label:"Reposición"},{id:"config",label:"⚙️"}];
 
   if(subScreen==="addStock")return<AgregarStock onSave={handleAddStock} onBack={()=>setSubScreen("")} tiendas={tiendas}/>;
   if(subScreen==="enviar")return<EnviarATienda allStock={allStock} tiendas={tiendas} onSend={handleEnviar} onBack={()=>setSubScreen("")}/>;
@@ -734,6 +904,95 @@ function PanelDuena({allSales,allFlags,allStock,setAllStock,vendedoras,setVended
           {inventarioFiltrado.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>No hay artículos con ese filtro.</div></div>
             :inventarioFiltrado.map((item,i)=>(<div key={i} style={sCard({padding:14})}><div style={{display:"flex",gap:12,alignItems:"center"}}>{item.foto?<img src={item.foto} alt="" style={{width:52,height:52,borderRadius:10,objectFit:"cover",flexShrink:0}}/>:<div style={{width:52,height:52,borderRadius:10,background:"#F0EDE8",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{item.tipo==="joyeria"?"💍":"👗"}</div>}<div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:800,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.producto}</div><div style={{fontSize:12,color:C.muted}}>{item.colorBase}{item.estampado&&item.estampado!=="-"?` · ${item.estampado}`:""}</div><div style={{fontSize:11,color:C.purple,fontWeight:600,marginTop:2}}>📍 {item.ubicacion}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:22,fontWeight:900,color:C.dark}}>{item.cantidad}</div><div style={{fontSize:10,color:C.muted,textTransform:"uppercase"}}>uds</div></div></div></div>))
           }
+        </>}
+
+        {tab==="socias"&&<>
+          {(()=>{
+            const MESES=["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+            const hoy=new Date();
+            const mesActual=hoy.getMonth()+1;
+            const cumpleMes=socias.filter(s=>s.cumple_mes===mesActual);
+            const activas=socias.filter(s=>s.activa);
+            const filtradas=socias.filter(s=>{
+              const f = filtroSocia==="todas" || (filtroSocia==="activas"&&s.activa) || (filtroSocia==="pendientes"&&!s.activa) || (filtroSocia==="cumple"&&s.cumple_mes===mesActual);
+              const b = !busquedaSocia || String(s.numero_socia).includes(busquedaSocia) || (s.nombre||"").toLowerCase().includes(busquedaSocia.toLowerCase()) || (s.comuna||"").toLowerCase().includes(busquedaSocia.toLowerCase());
+              return f&&b;
+            });
+            const topComunas=Object.entries(socias.reduce((a,s)=>{ if(s.comuna)a[s.comuna]=(a[s.comuna]||0)+1; return a; },{})).sort((a,b)=>b[1]-a[1]).slice(0,5);
+            const topColores=Object.entries(socias.reduce((a,s)=>{ if(s.color_favorito)a[s.color_favorito]=(a[s.color_favorito]||0)+1; return a; },{})).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+            return <>
+              <div style={{display:"flex",gap:10,marginBottom:16}}>
+                <div style={{...sCard({padding:16,marginBottom:0}),flex:1,textAlign:"center"}}>
+                  <div style={{fontSize:26,fontWeight:900,color:C.dark}}>{socias.length}</div>
+                  <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",fontWeight:700}}>Socias</div>
+                </div>
+                <div style={{...sCard({padding:16,marginBottom:0}),flex:1,textAlign:"center"}}>
+                  <div style={{fontSize:26,fontWeight:900,color:C.green}}>{activas.length}</div>
+                  <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",fontWeight:700}}>Activas</div>
+                </div>
+                <div style={{...sCard({padding:16,marginBottom:0}),flex:1,textAlign:"center"}}>
+                  <div style={{fontSize:26,fontWeight:900,color:C.orange}}>{cumpleMes.length}</div>
+                  <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",fontWeight:700}}>Cumplen</div>
+                </div>
+              </div>
+
+              {cumpleMes.length>0&&<div style={{...sCard({background:"#FEF8F3",border:`1.5px solid ${C.orange}`})}}>
+                <div style={{fontSize:15,fontWeight:800,color:C.orange,marginBottom:10}}>🎂 Cumpleaños este mes</div>
+                {cumpleMes.sort((a,b)=>a.cumple_dia-b.cumple_dia).map((s,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<cumpleMes.length-1?`1px solid ${C.border}`:"none"}}>
+                    <div style={{fontSize:14,fontWeight:600}}>{s.nombre} <span style={{color:C.muted,fontSize:12}}>#{s.numero_socia}</span></div>
+                    <div style={{fontSize:14,fontWeight:700,color:C.orange}}>{s.cumple_dia} {MESES[s.cumple_mes]}</div>
+                  </div>
+                ))}
+              </div>}
+
+              {socias.length>0&&<div style={sCard()}>
+                <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>📊 Datos de tus socias</div>
+                <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:8}}>Comunas más frecuentes</div>
+                {topComunas.map(([k,v])=>(
+                  <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:14}}>
+                    <span>{k}</span><span style={{fontWeight:700,color:C.purple}}>{v}</span>
+                  </div>
+                ))}
+                <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",margin:"14px 0 8px"}}>Colores favoritos</div>
+                {topColores.map(([k,v])=>(
+                  <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:14}}>
+                    <span>{k}</span><span style={{fontWeight:700,color:C.orange}}>{v}</span>
+                  </div>
+                ))}
+              </div>}
+
+              <div style={sCard()}>
+                <input style={{...sInput,marginBottom:12}} placeholder="🔍 Buscar por número, nombre o comuna..." value={busquedaSocia} onChange={e=>setBusquedaSocia(e.target.value)}/>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {[{id:"todas",l:"Todas"},{id:"activas",l:"Activas"},{id:"pendientes",l:"Pendientes"},{id:"cumple",l:"🎂 Este mes"}].map(f=>(
+                    <TagBtn key={f.id} label={f.l} active={filtroSocia===f.id} color={C.purple} bgActive="#F5ECF5" onClick={()=>setFiltroSocia(f.id)}/>
+                  ))}
+                </div>
+              </div>
+
+              {cargandoSocias
+                ?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Cargando socias…</div></div>
+                :filtradas.length===0
+                  ?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>{socias.length===0?"Aún no hay socias registradas.":"Ninguna socia con ese filtro."}</div></div>
+                  :filtradas.map((s,i)=>(
+                    <div key={i} style={sCard({padding:14})}>
+                      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                        <div style={{width:48,height:48,borderRadius:12,background:s.activa?"#E8F5EE":"#F0EDE8",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:s.activa?C.green:C.muted}}>{s.numero_socia}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:15,fontWeight:800}}>{s.nombre}</div>
+                          <div style={{fontSize:12,color:C.muted}}>{s.comuna}{s.rango_edad?` · ${s.rango_edad}`:""}</div>
+                          <div style={{fontSize:12,color:C.muted}}>+56 {s.telefono}{s.cumple_dia?` · 🎂 ${s.cumple_dia} ${MESES[s.cumple_mes]}`:""}</div>
+                          {s.color_favorito&&<div style={{fontSize:11,color:C.orange,marginTop:2}}>🎨 {s.color_favorito}{s.combinacion_favorita?` · ${s.combinacion_favorita}`:""}</div>}
+                        </div>
+                        <Badge text={s.activa?"Activa":"Pendiente"} color={s.activa?C.green:C.muted}/>
+                      </div>
+                    </div>
+                  ))
+              }
+            </>;
+          })()}
         </>}
 
         {tab==="formacion"&&<>
@@ -884,6 +1143,24 @@ function NuevaVenta({seller,tienda,onSave,onBack}){
   const [foto,setFoto]=useState(null);
   const [precio,setPrecio]=useState("");
   const [pago,setPago]=useState("");
+  const [esSocia,setEsSocia]=useState(null);
+  const [numSocia,setNumSocia]=useState("");
+  const [socia,setSocia]=useState(null);
+  const [buscando,setBuscando]=useState(false);
+  const [errorSocia,setErrorSocia]=useState("");
+
+  const buscarSocia=async()=>{
+    if(numSocia.length<4)return;
+    setBuscando(true); setErrorSocia("");
+    try{
+      const r=await db.get("socias",{numero_socia:numSocia});
+      if(r&&r.length>0){
+        setSocia(r[0]);
+        if(!r[0].activa){ try{ await db.update("socias",r[0].id,{activa:true,fecha_activacion:new Date()}); }catch(e){} }
+      } else { setErrorSocia("No encontramos ese número. Revísalo con la clienta."); }
+    }catch(e){ setErrorSocia("Error al buscar. Intenta de nuevo."); }
+    setBuscando(false);
+  };
   const esJoy=JOYERIA_ITEMS.includes(producto);
   const todosProds=categoria?(categoria==="Joyería"?JOYERIA_ITEMS:(ROPA_ITEMS[categoria]||[])):[];
   const canSave=producto&&colorBase&&foto&&precio&&pago&&(esJoy||(estampado&&colorAcento));
@@ -923,7 +1200,7 @@ function NuevaVenta({seller,tienda,onSave,onBack}){
           <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10}}>Medio de pago</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{MEDIOS_PAGO.map(p=>(<button key={p.id} onClick={()=>setPago(p.id)} style={{padding:"14px",borderRadius:12,fontFamily:"inherit",border:`2px solid ${pago===p.id?C.dark:C.border}`,background:pago===p.id?C.dark:C.white,color:pago===p.id?C.white:C.text,fontSize:15,fontWeight:700,cursor:"pointer"}}>{p.icon} {p.label}</button>))}</div>
         </div>}
-        {canSave&&<button onClick={()=>onSave({hora:new Date(),vendedora:seller,tienda,categoria,producto,colorBase,estampado:esJoy?"-":estampado,colorAcento:esJoy?"-":colorAcento,foto,precio:Number(precio),pago})} style={{...sBtn(C.green,true),padding:"18px",fontSize:17,borderRadius:16}}>✓ Guardar venta</button>}
+        {canSave&&<button onClick={()=>onSave({hora:new Date(),vendedora:seller,tienda,categoria,producto,colorBase,estampado:esJoy?"-":estampado,colorAcento:esJoy?"-":colorAcento,foto,precio:Number(precio),pago,numeroSocia:socia?socia.numero_socia:null,nombreSocia:socia?socia.nombre:null})} style={{...sBtn(C.green,true),padding:"18px",fontSize:17,borderRadius:16}}>✓ Guardar venta</button>}
       </div>
     </div>
   );
