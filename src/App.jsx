@@ -421,53 +421,6 @@ const MANUAL_VENTAS = [
   },
 ];
 
-  {
-    titulo:"Paso 1 — OBSERVAR",
-    icono:"👁️",
-    contenido:"Antes de acercarte, observa.\n\n¿Qué está mirando? ¿Va rápido o despacio? ¿Toca las prendas o solo mira? ¿Viene sola o acompañada?\n\nEsto te da información valiosa antes de decir una sola palabra. Una clienta que toca las telas está interesada. Una que mira desde lejos necesita tiempo.\n\nNunca te acerques antes de que ella dé alguna señal de apertura."
-  },
-  {
-    titulo:"Paso 2 — ESCUCHAR",
-    icono:"👂",
-    contenido:"Cuando te acerques, hazlo con una sola pregunta abierta:\n\n'¿Estás buscando algo en particular o estás viendo qué te llama la atención?'\n\nLuego CALLA y escucha. No interrumpas. No ofrezcas opciones antes de entender qué quiere.\n\nLo que ella dice (y lo que NO dice) te da todo lo que necesitas para el siguiente paso."
-  },
-  {
-    titulo:"Paso 3 — COMPRENDER",
-    icono:"🧠",
-    contenido:"Comprende qué está buscando realmente. A veces lo que piden no es lo que necesitan.\n\nEjemplo: 'Busco algo cómodo para la playa' puede significar que quiere verse bien sin esfuerzo, que va a estar mucho tiempo al sol, o que no quiere gastar mucho.\n\nHaz una pregunta más si necesitas claridad:\n'¿Es para salir o más para estar en la playa?'\n'¿Tienes algún color favorito o algo que quieras evitar?'"
-  },
-  {
-    titulo:"Paso 4 — ASESORAR",
-    icono:"💡",
-    contenido:"Ahora sí hablas. Pero no de todas las opciones — de las dos o tres que realmente le sirven.\n\nSé honesta. Si algo no le queda bien, dilo con amabilidad:\n'Este modelo es muy lindo pero creo que este otro te va a favorecer más.'\n\nLa honestidad construye confianza. Una clienta que confía en ti vuelve y recomienda.\n\nNunca digas 'te queda perfecto' si no es verdad. Ella lo sabe."
-  },
-  {
-    titulo:"Paso 5 — INSPIRAR",
-    icono:"✨",
-    contenido:"El cierre no es presionar. Es inspirar.\n\nCuando ella se ve bien con algo, refleja eso:\n'Te queda increíble — la combinación de ese color con tu tono de piel es perfecta.'\n\nSugiere un accesorio que complete el look:\n'Con unos aretes así quedaría espectacular.'\n\nDeja que ella decida. Tu trabajo es que se sienta tan bien que decida sola."
-  },
-  {
-    titulo:"Upselling — El arte de sugerir más",
-    icono:"🎁",
-    contenido:"Upselling no es vender más por vender. Es ayudar a la clienta a llevarse una experiencia completa.\n\nReglas de oro:\n• Solo sugiere si realmente complementa lo que compró\n• Muéstralo físicamente — pon el collar con el vestido\n• Una sola sugerencia adicional, no tres\n• Si dice que no, acéptalo sin insistir\n\nEjemplo perfecto: vendiste una falda gitana azul → sugieres un scrunchie en tono tierra que contraste."
-  },
-  {
-    titulo:"Qué hacer cuando no compran",
-    icono:"🤝",
-    contenido:"El 'no compro hoy' no es un fracaso. Es una oportunidad.\n\nLo que debes lograr aunque no compre:\n• Que salga con una buena impresión de Hindica\n• Que recuerde tu nombre o tu cara\n• Que tenga ganas de volver\n\nCómo lograrlo:\n• 'No hay problema, si quieres después te guardamos algo.'\n• 'Si ves algo que te guste y no está tu talla, avísame.'\n• Sonríe genuinamente cuando se va."
-  },
-  {
-    titulo:"El tablero de accesorios",
-    icono:"💍",
-    contenido:"El tablero de accesorios es tu herramienta de exhibición más importante.\n\nReglas obligatorias:\n• Solo 1 de cada modelo en exhibición\n• Colores lo más variados posible — nunca dos del mismo color juntos\n• Si se vende algo, reemplázalo inmediatamente con otro del stock\n• El tablero debe verse lleno y ordenado siempre\n\nUn tablero bien organizado vende solo. Uno desordenado ahuyenta clientas."
-  },
-  {
-    titulo:"Manejo de caja y ventas",
-    icono:"💵",
-    contenido:"Responsabilidades con la caja:\n• Registra CADA venta en la app inmediatamente\n• Indica el medio de pago correcto (efectivo, transferencia, crédito, débito)\n• Para ventas de ropa: toma foto del estampado\n• Para joyería: toma foto clara de la pieza\n• Si sacas efectivo de la caja, regístralo siempre con motivo\n\nAl cierre: cuenta el efectivo físico y compáralo con lo esperado. Si hay diferencia, regístrala honestamente."
-  },
-];
-
 function ModoEntrenamiento({onBack}){
   const [tab,setTab]=useState("principios");
   const [manualIdx,setManualIdx]=useState(0);
