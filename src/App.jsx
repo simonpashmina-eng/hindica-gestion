@@ -20,7 +20,7 @@ const db = {
 };
 
 // ── Club Hindica: conexión segura (solo funciones controladas, nunca la tabla) ──
-const CLUB_URL = "https://club-hindica-ebon.vercel.app";
+const CLUB_URL = "https://club-hindica.vercel.app";
 async function clubRpc(fn, args){
   try{
     const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`,{method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify(args)});
