@@ -1570,4 +1570,4 @@ export default function HindicaApp(){
   if(screen==="cierre")return W(<Cierre tienda={tienda} seller={seller} sales={sales} cashMovements={cashMovements} fondo={opening?.fondo} onComplete={data=>{if(data.diferencia!==0)addFlag({titulo:"Diferencia en caja al cierre",detalle:`${data.diferencia<0?"Falta":"Sobra"} ${fmt(Math.abs(data.diferencia))} en ${tienda}`,tienda,nivel:"rojo"});setScreen("cerrado");}}/>);
   if(screen==="cerrado")return W(<TurnoCerrado tienda={tienda} seller={seller} sales={sales}/>);
 }
-}
+
