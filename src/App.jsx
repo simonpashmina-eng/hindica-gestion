@@ -31,6 +31,30 @@ async function clubRpc(fn, args){
 const clubClave = { get(){ try{return localStorage.getItem("club_clave_equipo")||"";}catch(e){return "";} }, set(v){ try{ v?localStorage.setItem("club_clave_equipo",v):localStorage.removeItem("club_clave_equipo"); }catch(e){} } };
 const clubTienda = t => (t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
 
+// ── Stock guardado en la base de datos (tabla "stock") ──
+const stockHeaders = {apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`,"Content-Type":"application/json"};
+const stockDesdeFila = r => ({id:r.id,tipo:r.tipo,categoria:r.categoria,producto:r.producto,colorBase:r.color_base,estampado:r.estampado,colorAcento:r.color_acento,foto:r.foto,cantidad:r.cantidad,ubicacion:r.ubicacion,fechaIngreso:r.created_at});
+const stockAFila = s => ({id:String(s.id),tipo:s.tipo||null,categoria:s.categoria||null,producto:s.producto||null,color_base:s.colorBase||null,estampado:s.estampado||null,color_acento:s.colorAcento||null,foto:s.foto||null,cantidad:Number(s.cantidad)||0,ubicacion:s.ubicacion||null,updated_at:new Date().toISOString()});
+let stockAvisado = false;
+const stockDb = {
+  async cargar(){
+    try{ const r=await fetch(`${SUPABASE_URL}/rest/v1/stock?select=*`,{headers:stockHeaders}); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d.map(stockDesdeFila):null; }catch(e){ return null; }
+  },
+  async sincronizar(prev,next){
+    const antes=new Map(prev.map(s=>[s.id,s])); const ahora=new Set(next.map(s=>s.id));
+    const cambiados=next.filter(s=>{const a=antes.get(s.id);return !a||a.cantidad!==s.cantidad||a.ubicacion!==s.ubicacion;});
+    const borrados=prev.filter(s=>!ahora.has(s.id)).map(s=>String(s.id));
+    let ok=true;
+    try{
+      if(cambiados.length){ const r=await fetch(`${SUPABASE_URL}/rest/v1/stock`,{method:"POST",headers:{...stockHeaders,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(cambiados.map(stockAFila))}); if(!r.ok)ok=false; }
+      if(borrados.length){ const r=await fetch(`${SUPABASE_URL}/rest/v1/stock?id=in.(${borrados.map(id=>`"${id}"`).join(",")})`,{method:"DELETE",headers:stockHeaders}); if(!r.ok)ok=false; }
+    }catch(e){ ok=false; }
+    if(!ok&&!stockAvisado){ stockAvisado=true; alert("No se pudo guardar el stock en el sistema. Revisa la conexión a internet y vuelve a intentarlo."); setTimeout(()=>{stockAvisado=false;},60000); }
+  }
+};
+const mismoArticulo = (a,b) => a.tipo===b.tipo&&a.categoria===b.categoria&&a.producto===b.producto&&a.colorBase===b.colorBase&&(a.estampado||"")===(b.estampado||"")&&(a.colorAcento||"")===(b.colorAcento||"")&&(a.foto||"")===(b.foto||"");
+const descArticulo = s => `${s.producto} ${s.colorBase}${s.estampado&&s.estampado!=="-"?` ${s.estampado}`:""}`;
+
 const TIENDAS_DEFAULT   = ["Maitencillo","Papudo","Reñaca"];
 const DUENA_PIN_DEFAULT = "1234";
 const VENDEDORAS_DEFAULT= [{nombre:"Vendedora 1",pin:"1234"},{nombre:"Vendedora 2",pin:"1234"}];
@@ -374,7 +398,7 @@ const MANUAL_VENTAS = [
   { titulo:"Qué hacer y qué NO hacer", icono:"📋", contenido:"✅ SÍ hacer:" + String.fromCharCode(10) + "• Registrar cada venta inmediatamente" + String.fromCharCode(10) + "• Saludar a todas las clientas" + String.fromCharCode(10) + "• Ser honesta con la caja siempre" + String.fromCharCode(10) + "• Avisar si falta algo antes de que sea problema" + String.fromCharCode(10) + "• Dejar la tienda ordenada siempre" + String.fromCharCode(10) + String.fromCharCode(10) + "❌ NO hacer:" + String.fromCharCode(10) + "• Cobrar sin registrar en la app" + String.fromCharCode(10) + "• Guardar efectivo fuera de la caja" + String.fromCharCode(10) + "• Decir te queda perfecto si no es verdad" + String.fromCharCode(10) + "• Ignorar los avisos de la app" + String.fromCharCode(10) + "• Salir sin completar el cierre" },
   { titulo:"Primer contacto: ¿Eres socia?", icono:"👋", contenido:"Cuando una clienta entra a la tienda:" + String.fromCharCode(10) + "" + String.fromCharCode(10) + "1. Salúdala con calidez y mírala a los ojos: ¡Hola, bienvenida a Hindica!" + String.fromCharCode(10) + "2. Dale un momento para mirar y pregunta: ¿Eres socia del Club Hindica?" + String.fromCharCode(10) + "3. Responda lo que responda, pregúntale su nombre:" + String.fromCharCode(10) + "   • Si dice sí: ¡Qué bueno verte! ¿Cómo te llamas?" + String.fromCharCode(10) + "   • Si dice no: ¡No te preocupes! ¿Cómo te llamas?" + String.fromCharCode(10) + "4. Preséntate: Yo soy [tu nombre]. Cualquier cosa, me dices." + String.fromCharCode(10) + "5. NO le expliques el Club en ese momento. Solo si ella pregunta, o al momento de pagar." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "Por qué funciona: la pregunta hace que el Club exista en su cabeza sin venderle nada. Y saber su nombre cambia toda la conversación." },
   { titulo:"Usa su nombre", icono:"💛", contenido:"Úsalo al menos tres veces durante la visita:" + String.fromCharCode(10) + "• Al saludar" + String.fromCharCode(10) + "• Al recomendar: Camila, este turquesa te va a quedar precioso" + String.fromCharCode(10) + "• En caja" + String.fromCharCode(10) + "• Al despedirte: ¡Gracias, Camila, que lo disfrutes!" + String.fromCharCode(10) + "" + String.fromCharCode(10) + "Para recordarlo: repítelo en voz alta apenas te lo dice y asócialo con algo que lleva puesto." + String.fromCharCode(10) + "Natural, nunca forzado: no en cada frase." + String.fromCharCode(10) + "Si se te olvida, pide perdón con humor y pregúntale de nuevo. Es mejor que evitarlo." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "Si es socia, la app te muestra su nombre y su color favorito al registrar la venta. Úsalos." },
-  { titulo:"El Club en caja", icono:"🧾", contenido:"Al registrar la venta, la app te pregunta: ¿Es socia del Club?" + String.fromCharCode(10) + "" + String.fromCharCode(10) + "SI ES SOCIA:" + String.fromCharCode(10) + "• Pídele su número de socia (o su RUT, si lo olvidó) y búscala en la app." + String.fromCharCode(10) + "• La app te dice qué descuento corresponde: 20% de bienvenida (una sola vez) o 5%." + String.fromCharCode(10) + "• Escribe el precio normal: la app calcula cuánto cobrar." + String.fromCharCode(10) + "• Si aparece regalo de cumpleaños disponible, cuéntale. Si está de cumpleaños, ¡salúdala!" + String.fromCharCode(10) + "" + String.fromCharCode(10) + "SI NO ES SOCIA:" + String.fromCharCode(10) + "Antes de pagar: ¿Te quieres unir al Club Hindica? Es gratis, toma un minuto y hoy mismo tienes 20% de descuento en esta compra." + String.fromCharCode(10) + "Muéstrale el QR del mesón. Cuando termine te muestra su número: búscala y aplica el 20%." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "Si no quiere: ¡Perfecto! Cuando quieras, el QR está aquí. Nunca insistas." + String.fromCharCode(10) + "Si no puede escanear: inscríbela tú desde club-hindica-ebon.vercel.app, con ella al lado." },
+  { titulo:"El Club en caja", icono:"🧾", contenido:"Al registrar la venta, la app te pregunta: ¿Es socia del Club?" + String.fromCharCode(10) + "" + String.fromCharCode(10) + "SI ES SOCIA:" + String.fromCharCode(10) + "• Pídele su número de socia (o su RUT, si lo olvidó) y búscala en la app." + String.fromCharCode(10) + "• La app te dice qué descuento corresponde: 20% de bienvenida (una sola vez) o 5%." + String.fromCharCode(10) + "• Escribe el precio normal: la app calcula cuánto cobrar." + String.fromCharCode(10) + "• Si aparece regalo de cumpleaños disponible, cuéntale. Si está de cumpleaños, ¡salúdala!" + String.fromCharCode(10) + "" + String.fromCharCode(10) + "SI NO ES SOCIA:" + String.fromCharCode(10) + "Antes de pagar: ¿Te quieres unir al Club Hindica? Es gratis, toma un minuto y hoy mismo tienes 20% de descuento en esta compra." + String.fromCharCode(10) + "Muéstrale el QR del mesón. Cuando termine te muestra su número: búscala y aplica el 20%." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "Si no quiere: ¡Perfecto! Cuando quieras, el QR está aquí. Nunca insistas." + String.fromCharCode(10) + "Si no puede escanear: inscríbela tú desde club-hindica.vercel.app, con ella al lado." },
   { titulo:"Beneficios y reglas del Club", icono:"🌿", contenido:"El Club Hindica es gratis, para siempre. Cada socia tiene un número desde el 1001." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "• 20% de descuento una sola vez, en su primera compra como socia. Ese día no se suma al 5%." + String.fromCharCode(10) + "• 5% en todas sus compras, en todas las tiendas." + String.fromCharCode(10) + "• Regalo de cumpleaños sin comprar nada: lo retira cuando quiera desde su mes de cumpleaños. Uno por año." + String.fromCharCode(10) + "• Ofertas exclusivas y acceso antes que nadie a ediciones especiales y colecciones nuevas." + String.fromCharCode(10) + "• Invitaciones a los eventos VIP del Club." + String.fromCharCode(10) + "• Máximo 5 mensajes de WhatsApp al año, incluido el saludo de cumpleaños." + String.fromCharCode(10) + "• Sus datos no se comparten con nadie." },
   { titulo:"Preguntas sobre el Club", icono:"🛡️", contenido:"¿Me van a llenar de mensajes?" + String.fromCharCode(10) + "Para nada: máximo 5 al año, incluido tu saludo de cumpleaños. El sistema no nos deja mandar más." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "¿Tengo que pagar algo?" + String.fromCharCode(10) + "Nada. Es gratis, para siempre." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "¿Para qué quieren mi RUT?" + String.fromCharCode(10) + "Para que el descuento de bienvenida sea uno por persona. Se guarda cifrado: nadie del equipo puede verlo." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "¿Para qué quieren mis datos?" + String.fromCharCode(10) + "Para reconocerte como socia, darte tu regalo de cumpleaños e invitarte a eventos. No los compartimos con nadie." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "¿Tengo que comprar algo ahora?" + String.fromCharCode(10) + "No. Tu 20% te espera en tu primera compra, cuando quieras." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "Olvidé mi número." + String.fromCharCode(10) + "Lo busco con tu RUT, o lo tienes en tu chat de WhatsApp con Hindica." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "Quiero salir del Club." + String.fromCharCode(10) + "Escribe BAJA a nuestro WhatsApp o dímelo, y lo anotamos." },
   { titulo:"Preguntas frecuentes", icono:"❓", contenido:"¿Y si no sé el precio de algo?" + String.fromCharCode(10) + "Pregunta o busca en la app. Nunca inventes un precio." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si una clienta se enoja?" + String.fromCharCode(10) + "Calmada y amable. Si se complica, avisa a la dueña." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si me equivoco en una venta?" + String.fromCharCode(10) + "Avisa a la dueña de inmediato. Siempre hay solución." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si la caja no cuadra?" + String.fromCharCode(10) + "Sé honesta. Anota la diferencia real." + String.fromCharCode(10) + String.fromCharCode(10) + "¿Y si llego tarde?" + String.fromCharCode(10) + "Avisa ANTES. Siempre." },
@@ -633,9 +657,9 @@ function LoginDuena({duenaPin,onSuccess,onBack}){
   return(<div style={{position:"relative"}}><button onClick={onBack} style={{position:"absolute",top:20,left:20,zIndex:10,background:"rgba(255,255,255,0.1)",border:"none",color:C.white,borderRadius:8,padding:"6px 14px",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>← Volver</button><PinInput title="Panel Dueña" subtitle="Ingresa tu código secreto" color={C.purple} error={error} onPin={handlePin}/></div>);
 }
 
-function AgregarStock({onSave,onBack,tiendas}){
+function AgregarStock({onSave,onBack,tiendas,destino}){
   const [tipo,setTipo]=useState("");
-  const [bodega,setBodega]=useState("");
+  const [bodega,setBodega]=useState(destino||"");
   const [categoria,setCategoria]=useState("");
   const [producto,setProducto]=useState("");
   const [colorBase,setColorBase]=useState("");
@@ -647,7 +671,7 @@ function AgregarStock({onSave,onBack,tiendas}){
   const canSave=tipo&&bodega&&producto&&colorBase&&cantidad&&(tipo==="ropa"||(tipo==="joyeria"&&foto));
   return(
     <div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}>
-      <Header title="Agregar Stock" color={C.purple} onBack={onBack}/>
+      <Header title={destino?`Artículo nuevo · ${destino}`:"Agregar Stock"} color={C.purple} onBack={onBack}/>
       <div style={{padding:"20px 20px 0"}}>
         <div style={sCard()}>
           <div style={{fontSize:16,fontWeight:800,marginBottom:12}}>¿Qué tipo de artículo?</div>
@@ -661,10 +685,10 @@ function AgregarStock({onSave,onBack,tiendas}){
           </div>
         </div>
         {tipo&&<>
-          <div style={sCard()}>
+          {!destino&&<div style={sCard()}>
             <div style={{fontSize:16,fontWeight:800,marginBottom:12}}>¿Dónde entra?</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{BODEGAS.map(b=><TagBtn key={b} label={b} active={bodega===b} color={C.purple} bgActive="#F5ECF5" onClick={()=>setBodega(b)}/>)}</div>
-          </div>
+          </div>}
           {tipo==="ropa"&&<div style={sCard()}>
             <div style={{fontSize:16,fontWeight:800,marginBottom:12}}>Categoría</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:8}}>{Object.keys(ROPA_ITEMS).map(cat=><TagBtn key={cat} label={cat} active={categoria===cat} onClick={()=>{setCategoria(cat);setProducto("");}}/>)}</div>
@@ -783,20 +807,119 @@ function TransferirBodega({allStock,onTransfer,onBack}){
   );
 }
 
-function StockTienda({tienda,allStock,onBack}){
+function Contador({valor,onChange,max}){
+  const btn={width:40,height:40,borderRadius:10,fontSize:22,padding:0,display:"flex",alignItems:"center",justifyContent:"center",border:"none",cursor:"pointer",fontFamily:"inherit"};
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      <button onClick={()=>onChange(Math.max(0,valor-1))} style={{...btn,background:C.border,color:C.text}}>−</button>
+      <div style={{fontSize:22,fontWeight:900,minWidth:34,textAlign:"center"}}>{valor}</div>
+      <button onClick={()=>onChange(max!=null?Math.min(max,valor+1):valor+1)} style={{...btn,background:C.dark,color:C.white}}>+</button>
+    </div>
+  );
+}
+
+function FilaArticulo({item,derecha}){
+  return(
+    <div style={sCard({padding:14})}><div style={{display:"flex",gap:12,alignItems:"center"}}>
+      {item.foto?<img src={item.foto} alt="" style={{width:50,height:50,borderRadius:10,objectFit:"cover",flexShrink:0}}/>:<div style={{width:50,height:50,borderRadius:10,background:"#F0EDE8",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{item.tipo==="joyeria"?"💍":"👗"}</div>}
+      <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:800}}>{item.producto}</div><div style={{fontSize:12,color:C.muted}}>{item.colorBase}{item.estampado&&item.estampado!=="-"?` · ${item.estampado}`:""}{item.colorAcento&&item.colorAcento!=="-"?` · ${item.colorAcento}`:""}</div></div>
+      {derecha}
+    </div></div>
+  );
+}
+
+function StockTienda({tienda,seller,allStock,setAllStock,addFlag,onBack}){
+  const [modo,setModo]=useState("ver");
   const [filtro,setFiltro]=useState("todo");
-  const stock=allStock.filter(s=>s.ubicacion===tienda&&s.cantidad>0&&(filtro==="todo"||s.tipo===filtro));
+  const [bodega,setBodega]=useState("");
+  const [recibir,setRecibir]=useState({});
+  const [conteo,setConteo]=useState({});
+  const [msg,setMsg]=useState("");
+  const enTienda=allStock.filter(s=>s.ubicacion===tienda&&s.cantidad>0);
+  const stock=enTienda.filter(s=>filtro==="todo"||s.tipo===filtro);
+  const enBodega=allStock.filter(s=>s.ubicacion===bodega&&s.cantidad>0);
+  const totalRecibir=Object.values(recibir).reduce((a,b)=>a+b,0);
+  const volver=()=>{setModo("ver");setBodega("");setRecibir({});setConteo({});};
+
+  const guardarRecepcion=()=>{
+    setAllStock(prev=>{
+      let u=prev.map(s=>({...s}));
+      Object.entries(recibir).forEach(([id,cant],k)=>{
+        if(cant<=0)return;
+        const orig=u.find(s=>s.id===id); if(!orig)return;
+        orig.cantidad-=cant;
+        const dest=u.find(s=>s.ubicacion===tienda&&mismoArticulo(s,orig));
+        if(dest)dest.cantidad+=cant;
+        else u.push({...orig,id:`${Date.now()}-${k}`,cantidad:cant,ubicacion:tienda,fechaIngreso:new Date()});
+      });
+      return u.filter(s=>s.cantidad>0);
+    });
+    setMsg(`✓ ${totalRecibir} artículo${totalRecibir===1?"":"s"} recibido${totalRecibir===1?"":"s"} y descontado${totalRecibir===1?"":"s"} de ${bodega}.`);
+    volver();
+  };
+
+  const empezarConteo=()=>{const c0={};enTienda.forEach(s=>{c0[s.id]=s.cantidad;});setConteo(c0);setMsg("");setModo("contar");};
+  const guardarConteo=()=>{
+    const difs=enTienda.filter(s=>conteo[s.id]!==s.cantidad).map(s=>`${descArticulo(s)}: sistema ${s.cantidad} → contado ${conteo[s.id]} (${conteo[s.id]-s.cantidad>0?"+":""}${conteo[s.id]-s.cantidad})`);
+    if(difs.length){
+      setAllStock(prev=>prev.map(s=>conteo[s.id]!=null&&s.ubicacion===tienda?{...s,cantidad:conteo[s.id]}:s).filter(s=>s.cantidad>0));
+      addFlag({titulo:`Diferencia de stock en ${tienda}`,detalle:`Conteo de ${seller}: `+difs.join(" · "),tienda,nivel:"amarillo"});
+      setMsg(`Conteo guardado. ${difs.length} diferencia${difs.length===1?"":"s"}: se avisó a la dueña.`);
+    }else setMsg("✓ Conteo guardado: todo cuadra.");
+    volver();
+  };
+
+  if(modo==="nuevo")return <AgregarStock destino={tienda} onBack={()=>setModo("recibir")} onSave={item=>{
+    setAllStock(prev=>[...prev,{...item,ubicacion:tienda}]);
+    addFlag({titulo:"Artículo nuevo ingresado en tienda",detalle:`${seller} ingresó ${item.cantidad} × ${descArticulo(item)} directo en ${tienda} (no venía de bodega en el sistema). Revisa el stock de bodega.`,tienda,nivel:"amarillo"});
+    setMsg(`✓ ${item.cantidad} × ${item.producto} agregado a ${tienda}.`);volver();
+  }}/>;
+
+  if(modo==="recibir")return(
+    <div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}>
+      <Header title="Recibir stock" subtitle={tienda} onBack={volver}/>
+      <div style={{padding:"20px 20px 0"}}>
+        <div style={sCard()}>
+          <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>¿De qué bodega viene?</div>
+          <div style={{fontSize:13,color:C.muted,marginBottom:12}}>Lo que marques se suma a {tienda} y se descuenta de la bodega.</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{BODEGAS.map(b=><TagBtn key={b} label={b} active={bodega===b} color={C.dark} bgActive="#EEF4F1" onClick={()=>{setBodega(b);setRecibir({});}}/>)}</div>
+        </div>
+        {bodega&&enBodega.length===0&&<div style={{...sCard(),textAlign:"center",padding:28}}><div style={{fontSize:13,color:C.muted}}>No hay stock registrado en {bodega}.</div></div>}
+        {bodega&&enBodega.map(item=><FilaArticulo key={item.id} item={item} derecha={<div style={{textAlign:"right"}}><div style={{fontSize:11,color:C.muted,marginBottom:4}}>hay {item.cantidad}</div><Contador valor={recibir[item.id]||0} max={item.cantidad} onChange={v=>setRecibir(p=>({...p,[item.id]:v}))}/></div>}/>)}
+        {totalRecibir>0&&<button onClick={guardarRecepcion} style={{...sBtn(C.green,true),padding:"18px",fontSize:17,borderRadius:16,marginBottom:14}}>✓ Recibí {totalRecibir} artículo{totalRecibir===1?"":"s"}</button>}
+        <button onClick={()=>setModo("nuevo")} style={{...sBtn(C.white,true),color:C.purple,border:`2px dashed ${C.purple}`,fontSize:14}}>¿No está en la lista? Agregar artículo nuevo</button>
+        <div style={{fontSize:12,color:C.muted,marginTop:8,textAlign:"center"}}>Si agregas un artículo nuevo, la dueña recibe un aviso.</div>
+      </div>
+    </div>
+  );
+
+  if(modo==="contar")return(
+    <div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}>
+      <Header title="Contar stock" subtitle={tienda} onBack={volver}/>
+      <div style={{padding:"20px 20px 0"}}>
+        <div style={{...sCard(),background:"#FEF8F3"}}><div style={{fontSize:13,lineHeight:1.5}}>Cuenta cada artículo en la tienda y ajusta con − y +. Si algo no cuadra, se guarda el número que contaste y la dueña recibe un aviso con la diferencia.</div></div>
+        {enTienda.length===0&&<div style={{...sCard(),textAlign:"center",padding:28}}><div style={{fontSize:13,color:C.muted}}>No hay stock registrado. Usa "Recibir stock" primero.</div></div>}
+        {enTienda.map(item=><FilaArticulo key={item.id} item={item} derecha={<div style={{textAlign:"right"}}><div style={{fontSize:11,color:conteo[item.id]!==item.cantidad?C.orange:C.muted,marginBottom:4,fontWeight:conteo[item.id]!==item.cantidad?700:400}}>sistema: {item.cantidad}</div><Contador valor={conteo[item.id]??item.cantidad} onChange={v=>setConteo(p=>({...p,[item.id]:v}))}/></div>}/>)}
+        {enTienda.length>0&&<button onClick={guardarConteo} style={{...sBtn(C.green,true),padding:"18px",fontSize:17,borderRadius:16}}>✓ Guardar conteo</button>}
+      </div>
+    </div>
+  );
+
   return(
     <div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}>
       <Header title={`Stock · ${tienda}`} onBack={onBack}/>
       <div style={{padding:"20px 20px 0"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+          <button onClick={()=>{setMsg("");setModo("recibir");}} style={{...sBtn(C.green,true),borderRadius:12,padding:"14px 8px",fontSize:13,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><span style={{fontSize:20}}>📥</span>Recibir stock</button>
+          <button onClick={empezarConteo} style={{...sBtn(C.dark,true),borderRadius:12,padding:"14px 8px",fontSize:13,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><span style={{fontSize:20}}>🔢</span>Contar stock</button>
+        </div>
+        {msg&&<div style={{background:"#E8F5EE",color:C.green,borderRadius:12,padding:"12px 14px",fontSize:14,fontWeight:600,marginBottom:14}}>{msg}</div>}
         <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
           {[{id:"todo",label:"Todo"},{id:"ropa",label:"👗 Ropa"},{id:"joyeria",label:"💍 Joyería"}].map(f=>(<TagBtn key={f.id} label={f.label} active={filtro===f.id} onClick={()=>setFiltro(f.id)}/>))}
         </div>
         <div style={{fontSize:13,color:C.muted,marginBottom:12,fontWeight:600}}>{stock.reduce((a,i)=>a+i.cantidad,0)} unidades · {stock.length} modelos</div>
         {stock.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>No hay stock registrado para esta tienda.</div></div>
-          :stock.map((item,i)=>(<div key={i} style={sCard({padding:14})}><div style={{display:"flex",gap:12,alignItems:"center"}}>{item.foto?<img src={item.foto} alt="" style={{width:50,height:50,borderRadius:10,objectFit:"cover",flexShrink:0}}/>:<div style={{width:50,height:50,borderRadius:10,background:"#F0EDE8",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{item.tipo==="joyeria"?"💍":"👗"}</div>}<div style={{flex:1}}><div style={{fontSize:14,fontWeight:800}}>{item.producto}</div><div style={{fontSize:12,color:C.muted}}>{item.colorBase}{item.estampado&&item.estampado!=="-"?` · ${item.estampado}`:""}</div></div><div style={{fontSize:22,fontWeight:900,color:C.dark}}>{item.cantidad}</div></div></div>))
-        }
+          :stock.map(item=><FilaArticulo key={item.id} item={item} derecha={<div style={{fontSize:22,fontWeight:900,color:C.dark}}>{item.cantidad}</div>}/>)}
       </div>
     </div>
   );
@@ -1368,7 +1491,15 @@ export default function HindicaApp(){
   const [shiftStart,setShiftStart]      = useState(null);
   const [lastCheck,setLastCheck]        = useState(null);
   const [allFlags,setAllFlags]  = useState([]);
-  const [allStock,setAllStock]  = useState([]);
+  const [allStock,_setAllStock] = useState([]);
+  const stockRef = useRef([]);
+  const setAllStock = fn => {
+    const prev = stockRef.current;
+    const next = typeof fn === "function" ? fn(prev) : fn;
+    stockRef.current = next; _setAllStock(next);
+    stockDb.sincronizar(prev, next);
+  };
+  const recargarStock = async () => { const r = await stockDb.cargar(); if (r) { stockRef.current = r; _setAllStock(r); } };
   const [ferias,setFerias]      = useState([]);
   const [quizStats,setQuizStats]= useState([]);
   const [now,setNow]            = useState(new Date());
@@ -1391,6 +1522,8 @@ export default function HindicaApp(){
   },[]);
 
   useEffect(()=>{const t=setInterval(()=>setNow(new Date()),30000);return()=>clearInterval(t);},[]);
+  useEffect(()=>{ recargarStock(); },[]); // eslint-disable-line
+  useEffect(()=>{ if(mode==="duena"||screen==="verStock"||screen==="newSale"||screen==="shift") recargarStock(); },[mode,screen]); // eslint-disable-line
 
   const addFlag=async f=>{
     const flag={...f,hora:new Date()};
@@ -1433,7 +1566,8 @@ export default function HindicaApp(){
   if(screen==="chequeo")return W(<ChequeoHorario seller={seller} tienda={tienda} onSave={c=>{setHourlyChecks(p=>[...p,c]);setLastCheck(new Date());if(c.notas)addFlag({titulo:"Reporte en chequeo horario",detalle:c.notas,tienda,nivel:"amarillo"});setScreen("shift");}} onBack={()=>setScreen("shift")}/>);
   if(screen==="salidaCaja")return W(<SalidaCaja seller={seller} onSave={m=>{setCashMovements(p=>[...p,m]);addFlag({titulo:"Salida de caja",detalle:`${seller} retiró ${fmt(m.monto)}: ${m.motivo}`,tienda,nivel:"amarillo"});setScreen("shift");}} onBack={()=>setScreen("shift")}/>);
   if(screen==="insumos")return W(<ReporteInsumos seller={seller} tienda={tienda} onSave={r=>{addFlag({titulo:"Insumos faltantes",detalle:r.items,tienda,nivel:"rojo"});setScreen("shift");}} onBack={()=>setScreen("shift")}/>);
-  if(screen==="verStock")return W(<StockTienda tienda={tienda} allStock={allStock} onBack={()=>setScreen("shift")}/>);
+  if(screen==="verStock")return W(<StockTienda tienda={tienda} seller={seller} allStock={allStock} setAllStock={setAllStock} addFlag={addFlag} onBack={()=>setScreen("shift")}/>);
   if(screen==="cierre")return W(<Cierre tienda={tienda} seller={seller} sales={sales} cashMovements={cashMovements} fondo={opening?.fondo} onComplete={data=>{if(data.diferencia!==0)addFlag({titulo:"Diferencia en caja al cierre",detalle:`${data.diferencia<0?"Falta":"Sobra"} ${fmt(Math.abs(data.diferencia))} en ${tienda}`,tienda,nivel:"rojo"});setScreen("cerrado");}}/>);
   if(screen==="cerrado")return W(<TurnoCerrado tienda={tienda} seller={seller} sales={sales}/>);
+}
 }
