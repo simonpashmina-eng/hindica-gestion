@@ -656,7 +656,7 @@ function LoginVendedora({vendedoras,tiendas,onStart}){
       <button onClick={()=>setStep("tienda")} style={{background:"transparent",border:"none",color:C.muted,fontSize:14,cursor:"pointer",fontFamily:"inherit",marginBottom:20}}>← Cambiar tienda</button>
       <div style={{fontSize:14,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>¿Quién eres?</div>
       <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Tienda: <strong>{tienda}</strong></div>
-      {vendedoras.map(v=>(<button key={v.nombre} onClick={()=>{setNombre(v.nombre);setStep("pin");setError("");}} style={{width:"100%",background:C.white,border:`2px solid ${C.border}`,borderRadius:16,padding:"18px 20px",marginBottom:12,cursor:"pointer",fontFamily:"inherit",textAlign:"left",fontSize:16,fontWeight:700,color:C.dark}}>👤 {v.nombre}</button>))}
+      {vendedoras.filter(v=>!v.tiendas||v.tiendas.length===0||v.tiendas.includes(tienda)).map(v=>(<button key={v.nombre} onClick={()=>{setNombre(v.nombre);setStep("pin");setError("");}} style={{width:"100%",background:C.white,border:`2px solid ${C.border}`,borderRadius:16,padding:"18px 20px",marginBottom:12,cursor:"pointer",fontFamily:"inherit",textAlign:"left",fontSize:16,fontWeight:700,color:C.dark}}>👤 {v.nombre}</button>))}
     </div>
   );
   if(step==="pin")return(<PinInput title={`Hola, ${nombre}`} subtitle={`Ingresa tu PIN de 4 dígitos${vendedoras.find(v=>v.nombre===nombre)?.pin==="1234"?"\nPIN por defecto: 1234":""}`} color={C.dark} error={error} onPin={handlePin}/>);
@@ -1125,7 +1125,21 @@ function MsgLinea({msg}){
 }
 const btnMini=(color)=>({...sBtn(color),padding:"6px 12px",fontSize:12,borderRadius:8});
 
+function ElegirTiendas({opciones,valor,onChange}){
+  return(
+    <div style={{marginBottom:8}}>
+      <div style={{fontSize:12,color:C.muted,marginBottom:6}}>¿En qué tienda(s) trabaja?</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+        {opciones.map(t=>{const on=valor.includes(t);return(<button key={t} onClick={()=>onChange(on?valor.filter(x=>x!==t):[...valor,t])} style={{padding:"7px 12px",borderRadius:999,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1.5px solid ${on?C.purple:C.border}`,background:on?C.purple:C.white,color:on?C.white:C.text}}>{on?"✓ ":""}{t}</button>);})}
+      </div>
+    </div>
+  );
+}
+
 function ConfigEquipo({cfg,allSales}){
+  const opcionesTienda=cfg.locales.filter(localActivo).map(l=>l.nombre);
+  const [eTiendas,setETiendas]=useState([]);
+  const [nTiendas,setNTiendas]=useState([]);
   const [editId,setEditId]=useState(null);
   const [eNombre,setENombre]=useState("");
   const [ePin,setEPin]=useState("");
@@ -1136,11 +1150,11 @@ function ConfigEquipo({cfg,allSales}){
   const activas=cfg.equipo.filter(v=>v.activa!==false);
   const ex=cfg.equipo.filter(v=>v.activa===false);
   const resumen=n=>{const v=allSales.filter(s=>s.vendedora===n);return `${v.length} venta${v.length===1?"":"s"} · ${fmt(v.reduce((a,s)=>a+(s.precio||0),0))}`;};
-  const correr=async p=>{const r=await p;setMsg(r);if(r.ok){setEditId(null);setNNombre("");setNPin("");}};
+  const correr=async p=>{const r=await p;setMsg(r);if(r.ok){setEditId(null);setNNombre("");setNPin("");setNTiendas([]);}};
   return(
     <div style={sCard()}>
       <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>👤 Vendedoras</div>
-      <div style={{fontSize:13,color:C.muted,marginBottom:10}}>Usa el nombre real de cada una: así siempre sabrás quién hizo cada venta.</div>
+      <div style={{fontSize:13,color:C.muted,marginBottom:10}}>Usa el nombre real de cada una y marca en qué tienda(s) trabaja: al iniciar turno, cada tienda solo muestra a su equipo.</div>
       {cfg.equipo.length===0&&<div style={{fontSize:13,color:C.muted}}>Cargando…</div>}
       {activas.map(v=>(
         <div key={v.id} style={{padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
@@ -1148,16 +1162,17 @@ function ConfigEquipo({cfg,allSales}){
             <div>
               <input style={{...sInput,marginBottom:8}} value={eNombre} onChange={e=>setENombre(e.target.value)} placeholder="Nombre"/>
               <input style={{...sInput,marginBottom:8}} value={ePin} onChange={e=>setEPin(e.target.value.replace(/\D/g,""))} maxLength={4} type="password" placeholder="Nuevo PIN (opcional, 4 dígitos)"/>
+              <ElegirTiendas opciones={opcionesTienda} valor={eTiendas} onChange={setETiendas}/>
               <div style={{display:"flex",gap:8}}>
-                <button disabled={!eNombre.trim()||(ePin&&ePin.length!==4)} onClick={()=>correr(cfg.editarVendedora(v,eNombre.trim(),ePin))} style={{...btnMini(C.green),opacity:!eNombre.trim()||(ePin&&ePin.length!==4)?0.5:1}}>Guardar</button>
+                <button disabled={!eNombre.trim()||(ePin&&ePin.length!==4)} onClick={()=>correr(cfg.editarVendedora(v,eNombre.trim(),ePin,eTiendas))} style={{...btnMini(C.green),opacity:!eNombre.trim()||(ePin&&ePin.length!==4)?0.5:1}}>Guardar</button>
                 <button onClick={()=>setEditId(null)} style={{...btnMini(C.border),color:C.text}}>Cancelar</button>
               </div>
             </div>
           ):(
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
-              <div><div style={{fontSize:15,fontWeight:700}}>{v.nombre}</div><div style={{fontSize:12,color:C.muted}}>PIN ●●●● · {resumen(v.nombre)}</div></div>
+              <div><div style={{fontSize:15,fontWeight:700}}>{v.nombre}</div><div style={{fontSize:12,color:C.purple,fontWeight:600}}>📍 {v.tiendas&&v.tiendas.length?v.tiendas.join(", "):"Todas las tiendas"}</div><div style={{fontSize:12,color:C.muted}}>PIN ●●●● · {resumen(v.nombre)}</div></div>
               <div style={{display:"flex",gap:6,flexShrink:0}}>
-                <button onClick={()=>{setEditId(v.id);setENombre(v.nombre);setEPin("");setMsg(null);}} style={btnMini(C.dark)}>Editar</button>
+                <button onClick={()=>{setEditId(v.id);setENombre(v.nombre);setEPin("");setETiendas(v.tiendas||[]);setMsg(null);}} style={btnMini(C.dark)}>Editar</button>
                 <button onClick={()=>{if(window.confirm(`¿${v.nombre} ya no trabaja en Hindica? Dejará de aparecer al iniciar turno, pero su historial se guarda.`))correr(cfg.activarVendedora(v,false));}} style={{...btnMini(C.border),color:C.text}}>Desactivar</button>
               </div>
             </div>
@@ -1167,7 +1182,8 @@ function ConfigEquipo({cfg,allSales}){
       <div style={{marginTop:14}}>
         <input style={{...sInput,marginBottom:8}} placeholder="Nombre de la nueva vendedora" value={nNombre} onChange={e=>setNNombre(e.target.value)}/>
         <input style={{...sInput,marginBottom:8}} placeholder="PIN de 4 dígitos" maxLength={4} type="password" value={nPin} onChange={e=>setNPin(e.target.value.replace(/\D/g,""))}/>
-        <button disabled={!nNombre.trim()||nPin.length!==4} onClick={()=>correr(cfg.agregarVendedora(nNombre.trim(),nPin))} style={{...sBtn(nNombre.trim()&&nPin.length===4?C.green:C.border,true),opacity:nNombre.trim()&&nPin.length===4?1:0.5,borderRadius:10,padding:"12px"}}>+ Agregar vendedora</button>
+        <ElegirTiendas opciones={opcionesTienda} valor={nTiendas} onChange={setNTiendas}/>
+        <button disabled={!nNombre.trim()||nPin.length!==4} onClick={()=>correr(cfg.agregarVendedora(nNombre.trim(),nPin,nTiendas))} style={{...sBtn(nNombre.trim()&&nPin.length===4?C.green:C.border,true),opacity:nNombre.trim()&&nPin.length===4?1:0.5,borderRadius:10,padding:"12px"}}>+ Agregar vendedora</button>
       </div>
       <MsgLinea msg={msg}/>
       {ex.length>0&&<div style={{marginTop:14}}>
@@ -1656,7 +1672,7 @@ export default function HindicaApp(){
   const [vendedoras,setVendedoras] = useState(VENDEDORAS_DEFAULT);
   const [equipo,setEquipo]      = useState([]);   // todas las vendedoras (también ex vendedoras)
   const [locales,setLocales]    = useState([]);   // todas las tiendas y ferias (también cerradas)
-  const aplicarEquipo = rows => { setEquipo(rows); const act=rows.filter(r=>r.activa!==false); if(act.length)setVendedoras(act.map(x=>({nombre:x.nombre,pin:x.pin,id:x.id}))); };
+  const aplicarEquipo = rows => { setEquipo(rows); const act=rows.filter(r=>r.activa!==false); if(act.length)setVendedoras(act.map(x=>({nombre:x.nombre,pin:x.pin,id:x.id,tiendas:x.tiendas||[]}))); };
   const aplicarLocales = rows => { setLocales(rows); const act=rows.filter(localActivo); if(act.length)setTiendas(act.map(x=>x.nombre)); };
   const [duenaPin,setDuenaPin]  = useState(DUENA_PIN_DEFAULT);
   const [turnoId,setTurnoId]    = useState(null);
@@ -1688,13 +1704,13 @@ export default function HindicaApp(){
 
   const cfg = {
     equipo, locales,
-    async agregarVendedora(nombre,pin){
+    async agregarVendedora(nombre,pin,tiendasV=[]){
       if(equipo.some(v=>v.nombre.toLowerCase()===nombre.toLowerCase()))return {ok:false,msg:"Ya existe una vendedora con ese nombre."};
-      try{ const fila=await cfgApi.insertar("vendedoras",{nombre,pin,activa:true}); aplicarEquipo([...equipo,fila]); return {ok:true,msg:`✓ ${nombre} agregada.`}; }
+      try{ const fila=await cfgApi.insertar("vendedoras",{nombre,pin,activa:true,tiendas:tiendasV}); aplicarEquipo([...equipo,fila]); return {ok:true,msg:`✓ ${nombre} agregada.`}; }
       catch(e){ return {ok:false,msg:"No se pudo guardar. Revisa la conexión."}; }
     },
-    async editarVendedora(fila,nombre,pin){
-      const viejo=fila.nombre; const datos={nombre}; if(pin)datos.pin=pin;
+    async editarVendedora(fila,nombre,pin,tiendasV){
+      const viejo=fila.nombre; const datos={nombre}; if(pin)datos.pin=pin; if(tiendasV)datos.tiendas=tiendasV;
       if(nombre.toLowerCase()!==viejo.toLowerCase()&&equipo.some(v=>v.nombre.toLowerCase()===nombre.toLowerCase()))return {ok:false,msg:"Ya existe una vendedora con ese nombre."};
       try{
         await cfgApi.actualizar("vendedoras",`id=eq.${fila.id}`,datos);
