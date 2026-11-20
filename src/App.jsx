@@ -52,6 +52,17 @@ const stockDb = {
     if(!ok&&!stockAvisado){ stockAvisado=true; alert("No se pudo guardar el stock en el sistema. Revisa la conexión a internet y vuelve a intentarlo."); setTimeout(()=>{stockAvisado=false;},60000); }
   }
 };
+// ── Configuración guardada: vendedoras, tiendas/ferias, PIN de la dueña ──
+const cfgApi = {
+  async leer(tabla,filtro=""){ try{ const r=await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?select=*${filtro}`,{headers:stockHeaders}); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:null; }catch(e){ return null; } },
+  async insertar(tabla,fila){ const r=await fetch(`${SUPABASE_URL}/rest/v1/${tabla}`,{method:"POST",headers:{...stockHeaders,Prefer:"return=representation"},body:JSON.stringify(fila)}); if(!r.ok)throw new Error(await r.text()); const d=await r.json(); return Array.isArray(d)?d[0]:d; },
+  async actualizar(tabla,filtro,datos){ const r=await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?${filtro}`,{method:"PATCH",headers:{...stockHeaders,Prefer:"return=minimal"},body:JSON.stringify(datos)}); if(!r.ok)throw new Error(await r.text()); },
+  async guardarClave(clave,valor){ const r=await fetch(`${SUPABASE_URL}/rest/v1/config_app`,{method:"POST",headers:{...stockHeaders,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({clave,valor})}); if(!r.ok)throw new Error(await r.text()); },
+};
+const hoyISO = () => new Date().toLocaleDateString("en-CA",{timeZone:"America/Santiago"});
+const localActivo = r => r.activa!==false && !(r.tipo==="feria" && r.fecha_fin && r.fecha_fin < hoyISO());
+const fmtDia = d => d ? new Date(d+"T12:00:00").toLocaleDateString("es-CL",{day:"numeric",month:"short",year:"numeric"}) : "";
+
 const mismoArticulo = (a,b) => a.tipo===b.tipo&&a.categoria===b.categoria&&a.producto===b.producto&&a.colorBase===b.colorBase&&(a.estampado||"")===(b.estampado||"")&&(a.colorAcento||"")===(b.colorAcento||"")&&(a.foto||"")===(b.foto||"");
 const descArticulo = s => `${s.producto} ${s.colorBase}${s.estampado&&s.estampado!=="-"?` ${s.estampado}`:""}`;
 
@@ -59,13 +70,13 @@ const TIENDAS_DEFAULT   = ["Maitencillo","Papudo","Reñaca"];
 const DUENA_PIN_DEFAULT = "1234";
 const VENDEDORAS_DEFAULT= [{nombre:"Vendedora 1",pin:"1234"},{nombre:"Vendedora 2",pin:"1234"}];
 const BODEGAS           = ["Bodega Parcela","Bodega Santiago"];
-const JOYERIA_ITEMS     = ["Arete","Collar","Pulsera","Anillo","Tobillera"];
+const JOYERIA_ITEMS     = ["Aros","Collar","Pulsera","Anillo","Tobillera"];
 const ROPA_ITEMS = {
-  "Faldas":["Falda larga wrap","Falda gitana","Falda corta wrap","Falda corta elástica"],
-  "Tops":["Top cuello V largo","Top cuello V corto","Top amarrado manga larga","Top amarrado manga corta","Top elástico","Top reversible"],
+  "Faldas":["Falda larga envolvente","Falda gitana","Falda corta envolvente","Falda corta elástica"],
+  "Tops":["Top cuello V manga larga","Top cuello V manga corta","Top amarrado manga larga","Top amarrado manga corta","Top elástico","Top reversible"],
   "Pantalones":["Pantalón"],
-  "Vestidos":["Vestido wrap largo","Vestido wrap corto","Vestido Chile corto","Vestido Chile largo","Vestido Una corto","Vestido Una largo"],
-  "Accesorios":["Scrunchie ⭐","Bufanda"],
+  "Vestidos":["Vestido largo envolvente","Vestido corto envolvente","Vestido Chile corto","Vestido Chile largo","Vestido Una corto","Vestido Una largo"],
+  "Accesorios":["Scrunchie ⭐","Pareo"],
 };
 const COLORES    = ["Azul","Rojo","Verde","Morado","Naranja","Rosa","Amarillo","Negro","Blanco","Tierra","Turquesa","Café"];
 const ESTAMPADOS = ["Indiana","Floral","Geométrico","Mandala","Abstracto","Tropical","Étnico","Boho","Liso"];
@@ -383,7 +394,7 @@ const MANUAL_VENTAS = [
   { titulo:"Cómo abrir la app", icono:"📱", contenido:"1. Abre Safari o Chrome en tu teléfono" + String.fromCharCode(10) + "2. Ve a: gestion.hindica.cl" + String.fromCharCode(10) + "3. Toca Soy vendedora" + String.fromCharCode(10) + "4. Selecciona tu tienda" + String.fromCharCode(10) + "5. Selecciona tu nombre" + String.fromCharCode(10) + "6. Ingresa tu PIN de 4 dígitos" + String.fromCharCode(10) + String.fromCharCode(10) + "Después del PIN verás los 10 Principios Hindica. Debes leer y confirmar cada uno — no se puede saltar." + String.fromCharCode(10) + String.fromCharCode(10) + "Luego hay 3 preguntas de quiz. El sistema recuerda tus errores y te pregunta sobre tus puntos débiles." },
   { titulo:"La apertura — Cómo abrir bien la tienda", icono:"🔓", contenido:"Pasos obligatorios en orden:" + String.fromCharCode(10) + String.fromCharCode(10) + "✓ Limpiar el piso de la tienda" + String.fromCharCode(10) + "✓ Limpiar los espejos" + String.fromCharCode(10) + "✓ Tablero de accesorios: 1 de cada modelo, colores variados" + String.fromCharCode(10) + "✓ Ropa bien exhibida y ordenada" + String.fromCharCode(10) + "✓ Revisar insumos: bolsas, papel, perchas" + String.fromCharCode(10) + "✓ Contar el stock" + String.fromCharCode(10) + String.fromCharCode(10) + "Fotos obligatorias:" + String.fromCharCode(10) + "📸 Foto de la tienda abierta, limpia y ordenada" + String.fromCharCode(10) + "📸 Foto del tablero de accesorios" + String.fromCharCode(10) + String.fromCharCode(10) + "Fondo de caja: anota cuánto efectivo hay al abrir." },
   { titulo:"El tablero de accesorios", icono:"💍", contenido:"Reglas obligatorias:" + String.fromCharCode(10) + "• Solo 1 de cada modelo en exhibición" + String.fromCharCode(10) + "• Colores lo más variados posible — nunca dos iguales juntos" + String.fromCharCode(10) + "• Si se vende algo, reemplázalo inmediatamente" + String.fromCharCode(10) + "• Siempre debe verse lleno y ordenado" + String.fromCharCode(10) + String.fromCharCode(10) + "Esto se verifica en la apertura y en cada chequeo horario con foto." + String.fromCharCode(10) + String.fromCharCode(10) + "Un tablero bien organizado vende solo. Uno desordenado hace que las clientas pasen de largo." },
-  { titulo:"Cómo registrar una venta", icono:"🛍️", contenido:"Registra CADA venta en la app inmediatamente después de cobrar." + String.fromCharCode(10) + String.fromCharCode(10) + "Pasos:" + String.fromCharCode(10) + "1. Toca Registrar venta" + String.fromCharCode(10) + "2. Selecciona categoría y producto" + String.fromCharCode(10) + "3. Elige el color base" + String.fromCharCode(10) + "4. Para ropa: elige estampado y color acento" + String.fromCharCode(10) + "5. Toma una foto del artículo vendido (obligatorio)" + String.fromCharCode(10) + "6. Ingresa el precio" + String.fromCharCode(10) + "7. Selecciona el medio de pago" + String.fromCharCode(10) + String.fromCharCode(10) + "Nunca registres sin foto ni sin el medio de pago correcto." },
+  { titulo:"Cómo registrar una venta", icono:"🛍️", contenido:"Registra CADA venta en la app inmediatamente después de cobrar." + String.fromCharCode(10) + String.fromCharCode(10) + "Pasos:" + String.fromCharCode(10) + "1. Toca Registrar venta" + String.fromCharCode(10) + "2. Selecciona categoría y producto" + String.fromCharCode(10) + "3. Elige el color base" + String.fromCharCode(10) + "4. Para ropa: elige el color acento" + String.fromCharCode(10) + "5. Toma una foto del artículo vendido (obligatorio)" + String.fromCharCode(10) + "6. Ingresa el precio" + String.fromCharCode(10) + "7. Selecciona el medio de pago" + String.fromCharCode(10) + String.fromCharCode(10) + "Nunca registres sin foto ni sin el medio de pago correcto." },
   { titulo:"El chequeo horario", icono:"⏰", contenido:"La app te avisa cuando es hora de revisar la tienda." + String.fromCharCode(10) + String.fromCharCode(10) + "Lógica inteligente:" + String.fromCharCode(10) + "• Si vendiste algo en la última hora → 20 minutos extra de gracia" + String.fromCharCode(10) + "• Sin ventas → aviso a los 120 minutos" + String.fromCharCode(10) + "• Si ignoras dos avisos → la dueña recibe una alerta" + String.fromCharCode(10) + String.fromCharCode(10) + "Qué hacer:" + String.fromCharCode(10) + "✓ Verificar que la tienda está ordenada" + String.fromCharCode(10) + "✓ Artículos bien exhibidos" + String.fromCharCode(10) + "✓ Tablero: 1 de cada modelo, colores variados" + String.fromCharCode(10) + "✓ Nada roto o en mal estado" + String.fromCharCode(10) + "📸 Foto de la tienda" + String.fromCharCode(10) + "📸 Foto del tablero" },
   { titulo:"Manejo de caja", icono:"💵", contenido:"La caja es tu responsabilidad directa." + String.fromCharCode(10) + String.fromCharCode(10) + "Al abrir: anota el fondo inicial." + String.fromCharCode(10) + String.fromCharCode(10) + "Durante el día:" + String.fromCharCode(10) + "• Registra CADA venta con el medio de pago correcto" + String.fromCharCode(10) + "• Si sale efectivo → registra Salida de caja con monto y motivo" + String.fromCharCode(10) + String.fromCharCode(10) + "Al cerrar:" + String.fromCharCode(10) + "• Cuenta el efectivo físico" + String.fromCharCode(10) + "• La app calcula cuánto debería haber" + String.fromCharCode(10) + "• Ingresa el monto real — siempre sé honesta" + String.fromCharCode(10) + String.fromCharCode(10) + "Los errores que se reportan tienen solución. Los que se esconden no." },
   { titulo:"Cómo cerrar la tienda", icono:"🔒", contenido:"Al finalizar el día:" + String.fromCharCode(10) + String.fromCharCode(10) + "1. Conteo final del stock" + String.fromCharCode(10) + "2. Cierre en la app" + String.fromCharCode(10) + "3. Resumen de ventas por medio de pago" + String.fromCharCode(10) + "4. Cuenta el efectivo e ingrésalo" + String.fromCharCode(10) + "5. Checklist de cierre:" + String.fromCharCode(10) + "   ✓ Limpié la tienda" + String.fromCharCode(10) + "   ✓ Todo ordenado para mañana" + String.fromCharCode(10) + "   ✓ Tablero guardado" + String.fromCharCode(10) + "   ✓ Stock contado" + String.fromCharCode(10) + "6. Foto de la tienda cerrada y ordenada" + String.fromCharCode(10) + String.fromCharCode(10) + "La tienda debe quedar como quieres encontrarla mañana." },
@@ -676,7 +687,7 @@ function AgregarStock({onSave,onBack,tiendas,destino}){
         <div style={sCard()}>
           <div style={{fontSize:16,fontWeight:800,marginBottom:12}}>¿Qué tipo de artículo?</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            {[{id:"ropa",label:"👗 Ropa & Accesorios",sub:"Faldas, tops, scrunchies…"},{id:"joyeria",label:"💍 Joyería",sub:"Aretes, collares, pulseras…"}].map(t=>(
+            {[{id:"ropa",label:"👗 Ropa & Accesorios",sub:"Faldas, tops, scrunchies…"},{id:"joyeria",label:"💍 Joyería",sub:"Aros, collares, pulseras…"}].map(t=>(
               <button key={t.id} onClick={()=>{setTipo(t.id);setCategoria("");setProducto("");setFoto(null);}} style={{padding:"16px 12px",borderRadius:14,border:`2px solid ${tipo===t.id?C.purple:C.border}`,background:tipo===t.id?"#F5ECF5":C.white,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
                 <div style={{fontSize:14,fontWeight:800,color:tipo===t.id?C.purple:C.text}}>{t.label}</div>
                 <div style={{fontSize:11,color:C.muted,marginTop:4}}>{t.sub}</div>
@@ -702,8 +713,6 @@ function AgregarStock({onSave,onBack,tiendas,destino}){
             <div style={{fontSize:16,fontWeight:800,marginBottom:12}}>Color base</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:tipo==="ropa"?16:0}}>{COLORES.map(c=><TagBtn key={c} label={c} active={colorBase===c} onClick={()=>setColorBase(c)}/>)}</div>
             {tipo==="ropa"&&<>
-              <div style={{fontSize:16,fontWeight:800,margin:"16px 0 12px"}}>Estampado</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>{ESTAMPADOS.map(e=><TagBtn key={e} label={e} active={estampado===e} color={C.purple} bgActive="#F5ECF5" onClick={()=>setEstampado(e)}/>)}</div>
               <div style={{fontSize:16,fontWeight:800,marginBottom:12}}>Color acento</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{COLORES.map(c=><TagBtn key={c} label={c} active={colorAcento===c} color={C.gold} bgActive="#FDF5E0" onClick={()=>setColorAcento(c)}/>)}</div>
             </>}
@@ -716,7 +725,7 @@ function AgregarStock({onSave,onBack,tiendas,destino}){
               <button onClick={()=>setCantidad(q=>q+1)} style={{...sBtn(C.dark),width:48,height:48,borderRadius:12,fontSize:24,padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
             </div>
           </div>}
-          {canSave&&<button onClick={()=>onSave({id:Date.now().toString(),tipo,bodega,categoria:tipo==="joyeria"?"Joyería":categoria,producto,colorBase,estampado:tipo==="joyeria"?"-":estampado,colorAcento:tipo==="joyeria"?"-":colorAcento,foto,cantidad,ubicacion:bodega,fechaIngreso:new Date()})} style={{...sBtn(C.purple,true),padding:"18px",fontSize:17,borderRadius:16}}>
+          {canSave&&<button onClick={()=>onSave({id:Date.now().toString(),tipo,bodega,categoria:tipo==="joyeria"?"Joyería":categoria,producto,colorBase,estampado:"-",colorAcento:tipo==="joyeria"?"-":colorAcento,foto,cantidad,ubicacion:bodega,fechaIngreso:new Date()})} style={{...sBtn(C.purple,true),padding:"18px",fontSize:17,borderRadius:16}}>
             ✓ Guardar en {bodega||"bodega"}
           </button>}
         </>}
@@ -925,7 +934,7 @@ function StockTienda({tienda,seller,allStock,setAllStock,addFlag,onBack}){
   );
 }
 
-function PanelDuena({allSales,allFlags,allStock,setAllStock,vendedoras,setVendedoras,duenaPin,setDuenaPin,tiendas,setTiendas,ferias,setFerias,quizStats,onBack}){
+function PanelDuena({cfg,allSales,allFlags,allStock,setAllStock,vendedoras,setVendedoras,duenaPin,setDuenaPin,tiendas,setTiendas,ferias,setFerias,quizStats,onBack}){
   const [tab,setTab]=useState("hoy");
   const [subScreen,setSubScreen]=useState("");
   const [newNombre,setNewNombre]=useState("");
@@ -940,9 +949,14 @@ function PanelDuena({allSales,allFlags,allStock,setAllStock,vendedoras,setVended
   const [busqueda,setBusqueda]=useState("");
 
 
-  const totalHoy=allSales.reduce((a,s)=>a+s.precio,0);
-  const byTienda=tiendas.map(t=>({tienda:t,ventas:allSales.filter(s=>s.tienda===t),total:allSales.filter(s=>s.tienda===t).reduce((a,s)=>a+s.precio,0)}));
-  const byPago=MEDIOS_PAGO.map(p=>({...p,total:allSales.filter(s=>s.pago===p.id).reduce((a,s)=>a+s.precio,0),count:allSales.filter(s=>s.pago===p.id).length})).filter(p=>p.count>0);
+  const [periodo,setPeriodo]=useState("hoy");
+  const inicioPeriodo=(()=>{const d=new Date();d.setHours(0,0,0,0);if(periodo==="semana")d.setDate(d.getDate()-((d.getDay()+6)%7));if(periodo==="mes")d.setDate(1);return d;})();
+  const nombrePeriodo={hoy:"hoy",semana:"esta semana",mes:"este mes"}[periodo];
+  const ventasP=allSales.filter(s=>new Date(s.hora)>=inicioPeriodo).sort((a,b)=>new Date(b.hora)-new Date(a.hora));
+  const pagoDe=s=>s.pago||s.medio_pago;
+  const totalHoy=ventasP.reduce((a,s)=>a+(s.precio||0),0);
+  const byTienda=tiendas.map(t=>({tienda:t,ventas:ventasP.filter(s=>s.tienda===t),total:ventasP.filter(s=>s.tienda===t).reduce((a,s)=>a+(s.precio||0),0)}));
+  const byPago=MEDIOS_PAGO.map(p=>({...p,total:ventasP.filter(s=>pagoDe(s)===p.id).reduce((a,s)=>a+(s.precio||0),0),count:ventasP.filter(s=>pagoDe(s)===p.id).length})).filter(p=>p.count>0);
 
   const inventarioFiltrado=allStock.filter(item=>{
     const ubOk=filtroUbicacion==="todo"||item.ubicacion===filtroUbicacion;
@@ -985,7 +999,7 @@ function PanelDuena({allSales,allFlags,allStock,setAllStock,vendedoras,setVended
     setSubScreen("");
   };
 
-  const tabs=[{id:"hoy",label:"Hoy"},{id:"alertas",label:`Alertas${allFlags.length>0?` (${allFlags.length})`:""}`},{id:"ventas",label:"Ventas"},{id:"inventario",label:"Inventario"},{id:"socias",label:"Socias"},{id:"formacion",label:"Formación"},{id:"reposicion",label:"Reposición"},{id:"config",label:"⚙️"}];
+  const tabs=[{id:"hoy",label:"Resumen"},{id:"alertas",label:`Alertas${allFlags.length>0?` (${allFlags.length})`:""}`},{id:"ventas",label:"Ventas"},{id:"inventario",label:"Inventario"},{id:"socias",label:"Socias"},{id:"formacion",label:"Formación"},{id:"reposicion",label:"Reposición"},{id:"config",label:"⚙️"}];
 
   if(subScreen==="addStock")return<AgregarStock onSave={handleAddStock} onBack={()=>setSubScreen("")} tiendas={tiendas}/>;
   if(subScreen==="enviar")return<EnviarATienda allStock={allStock} tiendas={tiendas} onSend={handleEnviar} onBack={()=>setSubScreen("")}/>;
@@ -998,9 +1012,12 @@ function PanelDuena({allSales,allFlags,allStock,setAllStock,vendedoras,setVended
         <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",letterSpacing:"3px",textTransform:"uppercase"}}>PANEL DUEÑA</div>
         <div style={{fontSize:22,fontWeight:800,color:C.white,marginTop:4,marginBottom:16}}>👑 Hindica</div>
         <div style={{display:"flex",gap:10,marginBottom:16}}>
-          <div style={{flex:1,background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"14px"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.45)",textTransform:"uppercase"}}>Ventas hoy</div><div style={{fontSize:26,fontWeight:900,color:C.white,marginTop:4}}>{allSales.length}</div></div>
-          <div style={{flex:2,background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"14px"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.45)",textTransform:"uppercase"}}>Total hoy</div><div style={{fontSize:22,fontWeight:800,color:C.gold,marginTop:4}}>{fmt(totalHoy)}</div></div>
+          <div style={{flex:1,background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"14px"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.45)",textTransform:"uppercase"}}>Ventas {nombrePeriodo}</div><div style={{fontSize:26,fontWeight:900,color:C.white,marginTop:4}}>{ventasP.length}</div></div>
+          <div style={{flex:2,background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"14px"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.45)",textTransform:"uppercase"}}>Total {nombrePeriodo}</div><div style={{fontSize:22,fontWeight:800,color:C.gold,marginTop:4}}>{fmt(totalHoy)}</div></div>
           <div style={{background:allFlags.length>0?C.red:"rgba(255,255,255,0.1)",borderRadius:14,padding:"14px 16px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.6)",textTransform:"uppercase"}}>Alertas</div><div style={{fontSize:26,fontWeight:900,color:C.white}}>{allFlags.length}</div></div>
+        </div>
+        <div style={{display:"flex",gap:6,marginBottom:14}}>
+          {[["hoy","Hoy"],["semana","Esta semana"],["mes","Este mes"]].map(([id,l])=>(<button key={id} onClick={()=>setPeriodo(id)} style={{flex:1,padding:"8px 6px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,background:periodo===id?C.white:"rgba(255,255,255,0.12)",color:periodo===id?C.purple:"rgba(255,255,255,0.75)"}}>{l}</button>))}
         </div>
         <div style={{display:"flex",gap:3,overflowX:"auto"}}>
           {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"10px 12px",borderRadius:"10px 10px 0 0",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,whiteSpace:"nowrap",background:tab===t.id?C.bg:"rgba(255,255,255,0.08)",color:tab===t.id?C.purple:"rgba(255,255,255,0.6)"}}>{t.label}</button>))}
@@ -1015,7 +1032,7 @@ function PanelDuena({allSales,allFlags,allStock,setAllStock,vendedoras,setVended
 
         {tab==="alertas"&&<>{allFlags.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{fontSize:16,fontWeight:700,color:C.green}}>¡Todo en orden!</div></div>:allFlags.map((flag,i)=>(<div key={i} style={{...sCard(),borderLeft:`4px solid ${flag.nivel==="rojo"?C.red:C.gold}`}}><div style={{fontSize:14,fontWeight:800,color:flag.nivel==="rojo"?C.red:C.gold}}>{flag.nivel==="rojo"?"🔴":"🟡"} {flag.titulo}</div><div style={{fontSize:13,color:C.muted,marginTop:4}}>{flag.detalle}</div><div style={{fontSize:11,color:C.muted,marginTop:6}}>{flag.tienda} · {fmtTime(flag.hora)}</div></div>))}</>}
 
-        {tab==="ventas"&&<>{allSales.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Aún no hay ventas hoy.</div></div>:allSales.map((sale,i)=>(<div key={i} style={sCard({padding:14})}><div style={{display:"flex",gap:12,alignItems:"center"}}>{sale.foto&&<img src={sale.foto} alt="" style={{width:60,height:60,borderRadius:10,objectFit:"cover",flexShrink:0}}/>}<div style={{flex:1}}><div style={{fontSize:14,fontWeight:800}}>{sale.producto}</div><div style={{fontSize:12,color:C.muted}}>{sale.colorBase}{sale.estampado&&sale.estampado!=="-"?` · ${sale.estampado}`:""}</div><div style={{fontSize:11,color:C.muted}}>{sale.tienda} · {sale.vendedora} · {fmtTime(sale.hora)}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:15,fontWeight:800}}>{fmt(sale.precio)}</div><div style={{fontSize:11,color:C.muted}}>{MEDIOS_PAGO.find(p=>p.id===sale.pago)?.label}</div></div></div></div>))}</>}
+        {tab==="ventas"&&<>{ventasP.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Aún no hay ventas {nombrePeriodo}.</div></div>:ventasP.map((sale,i)=>(<div key={i} style={sCard({padding:14})}><div style={{display:"flex",gap:12,alignItems:"center"}}>{sale.foto&&<img src={sale.foto} alt="" style={{width:60,height:60,borderRadius:10,objectFit:"cover",flexShrink:0}}/>}<div style={{flex:1}}><div style={{fontSize:14,fontWeight:800}}>{sale.producto}</div><div style={{fontSize:12,color:C.muted}}>{(sale.colorBase||sale.color_base)}{sale.estampado&&sale.estampado!=="-"?` · ${sale.estampado}`:""}</div><div style={{fontSize:11,color:C.muted}}>{sale.tienda} · {sale.vendedora} · {fmtTime(sale.hora)}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:15,fontWeight:800}}>{fmt(sale.precio)}</div><div style={{fontSize:11,color:C.muted}}>{MEDIOS_PAGO.find(p=>p.id===(sale.pago||sale.medio_pago))?.label}</div></div></div></div>))}</>}
 
         {tab==="inventario"&&<>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
@@ -1088,43 +1105,177 @@ function PanelDuena({allSales,allFlags,allStock,setAllStock,vendedoras,setVended
         </>}
 
         {tab==="config"&&<>
-          <div style={sCard()}>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>👤 Vendedoras y PINs</div>
-            {vendedoras.map((v,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${C.border}`}}><div><div style={{fontSize:15,fontWeight:700}}>{v.nombre}</div><div style={{fontSize:12,color:C.muted}}>PIN: ●●●●</div></div><button onClick={()=>setVendedoras(vv=>vv.filter((_,j)=>j!==i))} style={{...sBtn(C.red),padding:"6px 14px",fontSize:13,borderRadius:8}}>Eliminar</button></div>))}
-            <div style={{marginTop:16}}>
-              <input style={{...sInput,marginBottom:10}} placeholder="Nombre de la vendedora" value={newNombre} onChange={e=>setNewNombre(e.target.value)}/>
-              <input style={{...sInput,marginBottom:10}} placeholder="PIN de 4 dígitos" maxLength={4} type="password" value={newPin} onChange={e=>setNewPin(e.target.value.replace(/\D/g,""))}/>
-              <button disabled={!newNombre.trim()||newPin.length!==4} onClick={()=>{setVendedoras(p=>[...p,{nombre:newNombre.trim(),pin:newPin}]);setNewNombre("");setNewPin("");}} style={{...sBtn(newNombre.trim()&&newPin.length===4?C.green:C.border,true),opacity:newNombre.trim()&&newPin.length===4?1:0.5,borderRadius:10,padding:"12px"}}>+ Agregar vendedora</button>
-            </div>
-          </div>
+          <ConfigEquipo cfg={cfg} allSales={allSales}/>
           <div style={sCard()}>
             <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>🔐 Cambiar mi PIN</div>
             <input style={{...sInput,marginBottom:10}} placeholder="Nuevo PIN de 4 dígitos" maxLength={4} type="password" value={editDuenaPin} onChange={e=>setEditDuenaPin(e.target.value.replace(/\D/g,""))}/>
-            <button disabled={editDuenaPin.length!==4} onClick={()=>{setDuenaPin(editDuenaPin);setEditDuenaPin("");setPinMsg("✓ PIN actualizado");setTimeout(()=>setPinMsg(""),2000);}} style={{...sBtn(editDuenaPin.length===4?C.purple:C.border,true),opacity:editDuenaPin.length===4?1:0.5,borderRadius:10,padding:"12px"}}>Guardar nuevo PIN</button>
+            <button disabled={editDuenaPin.length!==4} onClick={()=>{setDuenaPin(editDuenaPin);cfg.guardarPinDuena(editDuenaPin);setEditDuenaPin("");setPinMsg("✓ PIN actualizado");setTimeout(()=>setPinMsg(""),2000);}} style={{...sBtn(editDuenaPin.length===4?C.purple:C.border,true),opacity:editDuenaPin.length===4?1:0.5,borderRadius:10,padding:"12px"}}>Guardar nuevo PIN</button>
             {pinMsg&&<div style={{color:C.green,fontWeight:700,marginTop:10}}>{pinMsg}</div>}
           </div>
-          <div style={sCard()}>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>🏪 Tiendas permanentes</div>
-            {tiendas.map((t,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}><div style={{fontSize:15,fontWeight:600}}>📍 {t}</div><button onClick={()=>setTiendas(tt=>tt.filter((_,j)=>j!==i))} style={{...sBtn(C.red),padding:"5px 12px",fontSize:12,borderRadius:8}}>Eliminar</button></div>))}
-            <div style={{marginTop:14,display:"flex",gap:8}}>
-              <input style={{...sInput,flex:1}} placeholder="Nueva tienda..." value={newTienda} onChange={e=>setNewTienda(e.target.value)}/>
-              <button disabled={!newTienda.trim()} onClick={()=>{setTiendas(p=>[...p,newTienda.trim()]);setNewTienda("");}} style={{...sBtn(newTienda.trim()?C.green:C.border),borderRadius:10,padding:"12px 16px",opacity:newTienda.trim()?1:0.5}}>+</button>
-            </div>
-          </div>
-          <div style={sCard()}>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>🎪 Ferias temporeras</div>
-            <div style={{fontSize:13,color:C.muted,marginBottom:14}}>Con fecha de cierre. Se agregan como tienda automáticamente.</div>
-            {ferias.map((f,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}><div><div style={{fontSize:15,fontWeight:600}}>🎪 {f.nombre}</div><div style={{fontSize:12,color:C.muted}}>Hasta: {f.fecha||"Sin fecha"}</div></div><button onClick={()=>{setFerias(ff=>ff.filter((_,j)=>j!==i));setTiendas(tt=>tt.filter(t=>t!==f.nombre));}} style={{...sBtn(C.red),padding:"5px 12px",fontSize:12,borderRadius:8}}>Eliminar</button></div>))}
-            <div style={{marginTop:14}}>
-              <input style={{...sInput,marginBottom:8}} placeholder="Nombre de la feria" value={newFeria} onChange={e=>setNewFeria(e.target.value)}/>
-              <input style={{...sInput,marginBottom:8}} type="date" value={newFeriaFecha} onChange={e=>setNewFeriaFecha(e.target.value)}/>
-              <button disabled={!newFeria.trim()} onClick={()=>{setFerias(p=>[...p,{nombre:newFeria.trim(),fecha:newFeriaFecha}]);setTiendas(p=>[...p,newFeria.trim()]);setNewFeria("");setNewFeriaFecha("");}} style={{...sBtn(newFeria.trim()?C.orange:C.border,true),borderRadius:10,padding:"12px",opacity:newFeria.trim()?1:0.5}}>+ Agregar feria</button>
-            </div>
-          </div>
+          <ConfigLocales cfg={cfg} allSales={allSales}/>
         </>}
       </div>
     </div>
   );
+}
+
+function MsgLinea({msg}){
+  if(!msg)return null;
+  return <div style={{marginTop:10,fontSize:13,fontWeight:600,color:msg.ok?C.green:C.red}}>{msg.msg}</div>;
+}
+const btnMini=(color)=>({...sBtn(color),padding:"6px 12px",fontSize:12,borderRadius:8});
+
+function ConfigEquipo({cfg,allSales}){
+  const [editId,setEditId]=useState(null);
+  const [eNombre,setENombre]=useState("");
+  const [ePin,setEPin]=useState("");
+  const [nNombre,setNNombre]=useState("");
+  const [nPin,setNPin]=useState("");
+  const [verEx,setVerEx]=useState(false);
+  const [msg,setMsg]=useState(null);
+  const activas=cfg.equipo.filter(v=>v.activa!==false);
+  const ex=cfg.equipo.filter(v=>v.activa===false);
+  const resumen=n=>{const v=allSales.filter(s=>s.vendedora===n);return `${v.length} venta${v.length===1?"":"s"} · ${fmt(v.reduce((a,s)=>a+(s.precio||0),0))}`;};
+  const correr=async p=>{const r=await p;setMsg(r);if(r.ok){setEditId(null);setNNombre("");setNPin("");}};
+  return(
+    <div style={sCard()}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>👤 Vendedoras</div>
+      <div style={{fontSize:13,color:C.muted,marginBottom:10}}>Usa el nombre real de cada una: así siempre sabrás quién hizo cada venta.</div>
+      {cfg.equipo.length===0&&<div style={{fontSize:13,color:C.muted}}>Cargando…</div>}
+      {activas.map(v=>(
+        <div key={v.id} style={{padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
+          {editId===v.id?(
+            <div>
+              <input style={{...sInput,marginBottom:8}} value={eNombre} onChange={e=>setENombre(e.target.value)} placeholder="Nombre"/>
+              <input style={{...sInput,marginBottom:8}} value={ePin} onChange={e=>setEPin(e.target.value.replace(/\D/g,""))} maxLength={4} type="password" placeholder="Nuevo PIN (opcional, 4 dígitos)"/>
+              <div style={{display:"flex",gap:8}}>
+                <button disabled={!eNombre.trim()||(ePin&&ePin.length!==4)} onClick={()=>correr(cfg.editarVendedora(v,eNombre.trim(),ePin))} style={{...btnMini(C.green),opacity:!eNombre.trim()||(ePin&&ePin.length!==4)?0.5:1}}>Guardar</button>
+                <button onClick={()=>setEditId(null)} style={{...btnMini(C.border),color:C.text}}>Cancelar</button>
+              </div>
+            </div>
+          ):(
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+              <div><div style={{fontSize:15,fontWeight:700}}>{v.nombre}</div><div style={{fontSize:12,color:C.muted}}>PIN ●●●● · {resumen(v.nombre)}</div></div>
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                <button onClick={()=>{setEditId(v.id);setENombre(v.nombre);setEPin("");setMsg(null);}} style={btnMini(C.dark)}>Editar</button>
+                <button onClick={()=>{if(window.confirm(`¿${v.nombre} ya no trabaja en Hindica? Dejará de aparecer al iniciar turno, pero su historial se guarda.`))correr(cfg.activarVendedora(v,false));}} style={{...btnMini(C.border),color:C.text}}>Desactivar</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+      <div style={{marginTop:14}}>
+        <input style={{...sInput,marginBottom:8}} placeholder="Nombre de la nueva vendedora" value={nNombre} onChange={e=>setNNombre(e.target.value)}/>
+        <input style={{...sInput,marginBottom:8}} placeholder="PIN de 4 dígitos" maxLength={4} type="password" value={nPin} onChange={e=>setNPin(e.target.value.replace(/\D/g,""))}/>
+        <button disabled={!nNombre.trim()||nPin.length!==4} onClick={()=>correr(cfg.agregarVendedora(nNombre.trim(),nPin))} style={{...sBtn(nNombre.trim()&&nPin.length===4?C.green:C.border,true),opacity:nNombre.trim()&&nPin.length===4?1:0.5,borderRadius:10,padding:"12px"}}>+ Agregar vendedora</button>
+      </div>
+      <MsgLinea msg={msg}/>
+      {ex.length>0&&<div style={{marginTop:14}}>
+        <button onClick={()=>setVerEx(!verEx)} style={{background:"none",border:"none",color:C.muted,fontSize:13,cursor:"pointer",padding:0,fontFamily:"inherit",textDecoration:"underline"}}>{verEx?"Ocultar":"Ver"} ex vendedoras ({ex.length})</button>
+        {verEx&&ex.map(v=>(<div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}><div><div style={{fontSize:14,fontWeight:600,color:C.muted}}>{v.nombre}</div><div style={{fontSize:12,color:C.muted}}>{resumen(v.nombre)}</div></div><button onClick={()=>correr(cfg.activarVendedora(v,true))} style={btnMini(C.green)}>Reactivar</button></div>))}
+      </div>}
+    </div>
+  );
+}
+
+function HistorialLocal({local,allSales,onClose}){
+  const ventas=allSales.filter(s=>s.tienda===local.nombre);
+  const total=ventas.reduce((a,s)=>a+(s.precio||0),0);
+  const porVend={}; ventas.forEach(s=>{const k=s.vendedora||"—";porVend[k]=porVend[k]||{n:0,t:0};porVend[k].n++;porVend[k].t+=s.precio||0;});
+  const filas=Object.entries(porVend).sort((a,b)=>b[1].t-a[1].t);
+  const fechas=ventas.map(s=>new Date(s.hora)).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
+  return(
+    <div style={{...sCard(),border:`2px solid ${C.dark}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div><div style={{fontSize:12,color:C.muted,fontWeight:700,textTransform:"uppercase"}}>Historial</div><div style={{fontSize:18,fontWeight:900}}>{local.tipo==="feria"?"🎪":"📍"} {local.nombre}</div>
+        {local.tipo==="feria"&&<div style={{fontSize:12,color:C.muted}}>{fmtDia(local.fecha_inicio)}{local.fecha_fin?` → ${fmtDia(local.fecha_fin)}`:""}</div>}</div>
+        <button onClick={onClose} style={{...btnMini(C.border),color:C.text}}>Cerrar</button>
+      </div>
+      <div style={{display:"flex",gap:10,margin:"14px 0"}}>
+        <div style={{flex:1,background:C.bg,borderRadius:12,padding:12}}><div style={{fontSize:11,color:C.muted,textTransform:"uppercase",fontWeight:700}}>Ventas</div><div style={{fontSize:22,fontWeight:900}}>{ventas.length}</div></div>
+        <div style={{flex:2,background:C.bg,borderRadius:12,padding:12}}><div style={{fontSize:11,color:C.muted,textTransform:"uppercase",fontWeight:700}}>Total</div><div style={{fontSize:22,fontWeight:900,color:C.green}}>{fmt(total)}</div></div>
+      </div>
+      {fechas.length>0&&<div style={{fontSize:12,color:C.muted,marginBottom:10}}>Primera venta: {fechas[0].toLocaleDateString("es-CL")} · Última: {fechas[fechas.length-1].toLocaleDateString("es-CL")}</div>}
+      <div style={{fontSize:14,fontWeight:800,marginBottom:6}}>Por vendedora</div>
+      {filas.length===0?<div style={{fontSize:13,color:C.muted}}>Aún no hay ventas registradas aquí.</div>
+        :filas.map(([n,d])=>(<div key={n} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`,fontSize:14}}><div style={{fontWeight:700}}>{n}</div><div style={{color:C.muted}}>{d.n} venta{d.n===1?"":"s"} · <b style={{color:C.text}}>{fmt(d.t)}</b></div></div>))}
+    </div>
+  );
+}
+
+function ConfigLocales({cfg,allSales}){
+  const [nTienda,setNTienda]=useState("");
+  const [fNombre,setFNombre]=useState("");
+  const [fDesde,setFDesde]=useState("");
+  const [fHasta,setFHasta]=useState("");
+  const [hist,setHist]=useState(null);
+  const [verCerradas,setVerCerradas]=useState(false);
+  const [msg,setMsg]=useState(null);
+  const tiendas=cfg.locales.filter(l=>l.tipo!=="feria");
+  const ferias=cfg.locales.filter(l=>l.tipo==="feria");
+  const feriasActivas=ferias.filter(localActivo).sort((a,b)=>(a.fecha_inicio||"").localeCompare(b.fecha_inicio||""));
+  const feriasPasadas=ferias.filter(f=>!localActivo(f)).sort((a,b)=>(b.fecha_inicio||"").localeCompare(a.fecha_inicio||""));
+  const ventasDe=n=>{const v=allSales.filter(s=>s.tienda===n);return `${v.length} venta${v.length===1?"":"s"} · ${fmt(v.reduce((a,s)=>a+(s.precio||0),0))}`;};
+  const correr=async p=>{const r=await p;setMsg(r);return r;};
+  const anioDe=d=>(d||hoyISO()).slice(0,4);
+  const nombreFeria=()=>{const n=fNombre.trim();return /\b(19|20)\d{2}\b/.test(n)?n:`${n} ${anioDe(fDesde)}`;};
+  const agregarFeria=async()=>{const r=await correr(cfg.agregarLocal({nombre:nombreFeria(),tipo:"feria",fecha_inicio:fDesde||null,fecha_fin:fHasta||null}));if(r.ok){setFNombre("");setFDesde("");setFHasta("");}};
+  const repetir=f=>{const base=f.nombre.replace(/\s*\b(19|20)\d{2}\b\s*/g," ").trim();setFNombre(base);setFDesde("");setFHasta("");setMsg({ok:true,msg:`Elige las nuevas fechas para "${base}" y toca Agregar feria.`});window.scrollTo(0,document.body.scrollHeight);};
+  const filaLocal=(l,acciones)=>(
+    <div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+      <div style={{minWidth:0}}><div style={{fontSize:15,fontWeight:700,color:localActivo(l)?C.text:C.muted}}>{l.tipo==="feria"?"🎪":"📍"} {l.nombre}</div>
+        <div style={{fontSize:12,color:C.muted}}>{l.tipo==="feria"&&(l.fecha_inicio||l.fecha_fin)?`${fmtDia(l.fecha_inicio)}${l.fecha_fin?` → ${fmtDia(l.fecha_fin)}`:""} · `:""}{ventasDe(l.nombre)}</div></div>
+      <div style={{display:"flex",gap:6,flexShrink:0}}>{acciones}</div>
+    </div>
+  );
+  return(<>
+    {hist&&<HistorialLocal local={hist} allSales={allSales} onClose={()=>setHist(null)}/>}
+    <div style={sCard()}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>🏪 Tiendas permanentes</div>
+      {tiendas.filter(l=>l.activa!==false).map(l=>filaLocal(l,<>
+        <button onClick={()=>setHist(l)} style={btnMini(C.dark)}>Historial</button>
+        <button onClick={()=>{if(window.confirm(`¿Cerrar ${l.nombre}? Dejará de aparecer al iniciar turno. Su historial se guarda.`))correr(cfg.activarLocal(l,false));}} style={{...btnMini(C.border),color:C.text}}>Cerrar</button>
+      </>))}
+      <div style={{marginTop:14,display:"flex",gap:8}}>
+        <input style={{...sInput,flex:1}} placeholder="Nueva tienda..." value={nTienda} onChange={e=>setNTienda(e.target.value)}/>
+        <button disabled={!nTienda.trim()} onClick={async()=>{const r=await correr(cfg.agregarLocal({nombre:nTienda.trim(),tipo:"tienda"}));if(r.ok)setNTienda("");}} style={{...sBtn(nTienda.trim()?C.green:C.border),borderRadius:10,padding:"12px 16px",opacity:nTienda.trim()?1:0.5}}>+</button>
+      </div>
+      {tiendas.some(l=>l.activa===false)&&<div style={{marginTop:12}}>
+        <button onClick={()=>setVerCerradas(!verCerradas)} style={{background:"none",border:"none",color:C.muted,fontSize:13,cursor:"pointer",padding:0,fontFamily:"inherit",textDecoration:"underline"}}>{verCerradas?"Ocultar":"Ver"} tiendas cerradas</button>
+        {verCerradas&&tiendas.filter(l=>l.activa===false).map(l=>filaLocal(l,<>
+          <button onClick={()=>setHist(l)} style={btnMini(C.dark)}>Historial</button>
+          <button onClick={()=>correr(cfg.activarLocal(l,true))} style={btnMini(C.green)}>Reabrir</button>
+        </>))}
+      </div>}
+    </div>
+    <div style={sCard()}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>🎪 Ferias</div>
+      <div style={{fontSize:13,color:C.muted,marginBottom:12}}>Aparecen al iniciar turno hasta su fecha de término. Después pasan a "Ferias anteriores" con todo su historial.</div>
+      {feriasActivas.length===0&&<div style={{fontSize:13,color:C.muted,marginBottom:8}}>No hay ferias activas.</div>}
+      {feriasActivas.map(f=>filaLocal(f,<>
+        <button onClick={()=>setHist(f)} style={btnMini(C.dark)}>Historial</button>
+        <button onClick={()=>{if(window.confirm(`¿Terminar ${f.nombre} ahora?`))correr(cfg.activarLocal(f,false));}} style={{...btnMini(C.border),color:C.text}}>Terminar</button>
+      </>))}
+      <div style={{marginTop:14,background:C.bg,borderRadius:12,padding:12}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:8}}>Nueva feria</div>
+        <input style={{...sInput,marginBottom:8}} placeholder="Ej: Feria Navidad Zapallar" value={fNombre} onChange={e=>setFNombre(e.target.value)}/>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:C.muted,marginBottom:4}}>Desde</div><input style={{...sInput,minWidth:0,padding:"12px 8px"}} type="date" value={fDesde} onChange={e=>setFDesde(e.target.value)}/></div>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:C.muted,marginBottom:4}}>Hasta</div><input style={{...sInput,minWidth:0,padding:"12px 8px"}} type="date" value={fHasta} onChange={e=>setFHasta(e.target.value)}/></div>
+        </div>
+        {fNombre.trim()&&<div style={{fontSize:12,color:C.muted,marginBottom:8}}>Se guardará como: <b style={{color:C.text}}>{nombreFeria()}</b> (con el año, para no mezclarla con la del año siguiente)</div>}
+        <button disabled={!fNombre.trim()} onClick={agregarFeria} style={{...sBtn(fNombre.trim()?C.orange:C.border,true),borderRadius:10,padding:"12px",opacity:fNombre.trim()?1:0.5}}>+ Agregar feria</button>
+      </div>
+      <MsgLinea msg={msg}/>
+      {feriasPasadas.length>0&&<div style={{marginTop:16}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Ferias anteriores</div>
+        {feriasPasadas.map(f=>filaLocal(f,<>
+          <button onClick={()=>setHist(f)} style={btnMini(C.dark)}>Historial</button>
+          <button onClick={()=>repetir(f)} style={btnMini(C.orange)}>Repetir</button>
+        </>))}
+      </div>}
+    </div>
+  </>);
 }
 
 function Apertura({tienda,seller,onComplete}){
@@ -1303,7 +1454,7 @@ function NuevaVenta({seller,tienda,onSave,onBack}){
   const precioFinal=precio?Math.round(Number(precio)*(100-descuento)/100):0;
   const esJoy=JOYERIA_ITEMS.includes(producto);
   const todosProds=categoria?(categoria==="Joyería"?JOYERIA_ITEMS:(ROPA_ITEMS[categoria]||[])):[];
-  const canSave=club.decidido&&producto&&colorBase&&foto&&precio&&pago&&(esJoy||(estampado&&colorAcento));
+  const canSave=club.decidido&&producto&&colorBase&&foto&&precio&&pago&&(esJoy||colorAcento);
   const guardar=async()=>{
     setErrorGuardar("");
     if(socia){
@@ -1312,7 +1463,7 @@ function NuevaVenta({seller,tienda,onSave,onBack}){
       setGuardando(false);
       if(!r.ok){ setErrorGuardar(r.error||"No se pudo registrar el descuento del Club."); return; }
     }
-    onSave({hora:new Date(),vendedora:seller,tienda,categoria,producto,colorBase,estampado:esJoy?"-":estampado,colorAcento:esJoy?"-":colorAcento,foto,precio:precioFinal,precioLista:Number(precio),descuentoClub:descuento,pago,numeroSocia:socia?socia.numero:null,nombreSocia:socia?socia.nombre:null});
+    onSave({hora:new Date(),vendedora:seller,tienda,categoria,producto,colorBase,estampado:"-",colorAcento:esJoy?"-":colorAcento,foto,precio:precioFinal,precioLista:Number(precio),descuentoClub:descuento,pago,numeroSocia:socia?socia.numero:null,nombreSocia:socia?socia.nombre:null});
   };
   return(
     <div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}>
@@ -1331,8 +1482,6 @@ function NuevaVenta({seller,tienda,onSave,onBack}){
           <div style={{fontSize:16,fontWeight:800,marginBottom:12}}>Color base</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:esJoy?0:16}}>{COLORES.map(c=><TagBtn key={c} label={c} active={colorBase===c} onClick={()=>setColorBase(c)}/>)}</div>
           {!esJoy&&<>
-            <div style={{fontSize:16,fontWeight:800,margin:"16px 0 12px"}}>Estampado</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>{ESTAMPADOS.map(e=><TagBtn key={e} label={e} active={estampado===e} color={C.purple} bgActive="#F5ECF5" onClick={()=>setEstampado(e)}/>)}</div>
             <div style={{fontSize:16,fontWeight:800,marginBottom:12}}>Color acento</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{COLORES.map(c=><TagBtn key={c} label={c} active={colorAcento===c} color={C.gold} bgActive="#FDF5E0" onClick={()=>setColorAcento(c)}/>)}</div>
           </>}
@@ -1505,6 +1654,10 @@ export default function HindicaApp(){
   const [now,setNow]            = useState(new Date());
   const [tiendas,setTiendas]    = useState(TIENDAS_DEFAULT);
   const [vendedoras,setVendedoras] = useState(VENDEDORAS_DEFAULT);
+  const [equipo,setEquipo]      = useState([]);   // todas las vendedoras (también ex vendedoras)
+  const [locales,setLocales]    = useState([]);   // todas las tiendas y ferias (también cerradas)
+  const aplicarEquipo = rows => { setEquipo(rows); const act=rows.filter(r=>r.activa!==false); if(act.length)setVendedoras(act.map(x=>({nombre:x.nombre,pin:x.pin,id:x.id}))); };
+  const aplicarLocales = rows => { setLocales(rows); const act=rows.filter(localActivo); if(act.length)setTiendas(act.map(x=>x.nombre)); };
   const [duenaPin,setDuenaPin]  = useState(DUENA_PIN_DEFAULT);
   const [turnoId,setTurnoId]    = useState(null);
 
@@ -1512,8 +1665,16 @@ export default function HindicaApp(){
     const load=async()=>{
       try{
         const [v,t,s,a]=await Promise.all([db.get("vendedoras",{}),db.get("tiendas",{}),db.get("ventas",{}),db.get("alertas",{})]);
-        if(v&&v.length>0)setVendedoras(v.map(x=>({nombre:x.nombre,pin:x.pin,id:x.id})));
-        if(t&&t.length>0)setTiendas(t.map(x=>x.nombre));
+        if(Array.isArray(v)){
+          if(v.length>0)aplicarEquipo(v);
+          else{ try{ const creadas=[]; for(const d of VENDEDORAS_DEFAULT)creadas.push(await cfgApi.insertar("vendedoras",{nombre:d.nombre,pin:d.pin,activa:true})); aplicarEquipo(creadas); }catch(e){} }
+        }
+        if(Array.isArray(t)){
+          if(t.length>0)aplicarLocales(t);
+          else{ try{ const creadas=[]; for(const n of TIENDAS_DEFAULT)creadas.push(await cfgApi.insertar("tiendas",{nombre:n,tipo:"tienda",activa:true})); aplicarLocales(creadas); }catch(e){} }
+        }
+        const pinRows=await cfgApi.leer("config_app","&clave=eq.duena_pin");
+        if(pinRows&&pinRows[0]&&pinRows[0].valor)setDuenaPin(pinRows[0].valor);
         if(s&&s.length>0)setAllSales(s);
         if(a&&a.length>0)setAllFlags(a.filter(x=>!x.vista));
       }catch(e){}
@@ -1524,6 +1685,45 @@ export default function HindicaApp(){
   useEffect(()=>{const t=setInterval(()=>setNow(new Date()),30000);return()=>clearInterval(t);},[]);
   useEffect(()=>{ recargarStock(); },[]); // eslint-disable-line
   useEffect(()=>{ if(mode==="duena"||screen==="verStock"||screen==="newSale"||screen==="shift") recargarStock(); },[mode,screen]); // eslint-disable-line
+
+  const cfg = {
+    equipo, locales,
+    async agregarVendedora(nombre,pin){
+      if(equipo.some(v=>v.nombre.toLowerCase()===nombre.toLowerCase()))return {ok:false,msg:"Ya existe una vendedora con ese nombre."};
+      try{ const fila=await cfgApi.insertar("vendedoras",{nombre,pin,activa:true}); aplicarEquipo([...equipo,fila]); return {ok:true,msg:`✓ ${nombre} agregada.`}; }
+      catch(e){ return {ok:false,msg:"No se pudo guardar. Revisa la conexión."}; }
+    },
+    async editarVendedora(fila,nombre,pin){
+      const viejo=fila.nombre; const datos={nombre}; if(pin)datos.pin=pin;
+      if(nombre.toLowerCase()!==viejo.toLowerCase()&&equipo.some(v=>v.nombre.toLowerCase()===nombre.toLowerCase()))return {ok:false,msg:"Ya existe una vendedora con ese nombre."};
+      try{
+        await cfgApi.actualizar("vendedoras",`id=eq.${fila.id}`,datos);
+        aplicarEquipo(equipo.map(v=>v.id===fila.id?{...v,...datos}:v));
+        let nota="";
+        if(nombre!==viejo){
+          setAllSales(p=>p.map(s=>s.vendedora===viejo?{...s,vendedora:nombre}:s));
+          try{ await cfgApi.actualizar("ventas",`vendedora=eq.${encodeURIComponent(viejo)}`,{vendedora:nombre}); await cfgApi.actualizar("turnos",`vendedora=eq.${encodeURIComponent(viejo)}`,{vendedora:nombre}); nota=` Sus ventas anteriores ahora aparecen como ${nombre}.`; }
+          catch(e){ nota=" (Las ventas anteriores quedaron con el nombre antiguo.)"; }
+        }
+        return {ok:true,msg:`✓ Guardado.${nota}`};
+      }catch(e){ return {ok:false,msg:"No se pudo guardar. Revisa la conexión."}; }
+    },
+    async activarVendedora(fila,activa){
+      if(!activa&&equipo.filter(v=>v.activa!==false).length<=1)return {ok:false,msg:"Debe quedar al menos una vendedora activa."};
+      try{ await cfgApi.actualizar("vendedoras",`id=eq.${fila.id}`,{activa}); aplicarEquipo(equipo.map(v=>v.id===fila.id?{...v,activa}:v)); return {ok:true,msg:activa?`✓ ${fila.nombre} está activa otra vez.`:`${fila.nombre} ya no aparece al iniciar turno. Su historial se conserva.`}; }
+      catch(e){ return {ok:false,msg:"No se pudo guardar. Revisa la conexión."}; }
+    },
+    async agregarLocal(datos){
+      if(locales.some(l=>l.nombre.toLowerCase()===datos.nombre.toLowerCase()))return {ok:false,msg:"Ya existe una tienda o feria con ese nombre."};
+      try{ const fila=await cfgApi.insertar("tiendas",{...datos,activa:true}); aplicarLocales([...locales,fila]); return {ok:true,msg:`✓ ${datos.nombre} agregada.`}; }
+      catch(e){ return {ok:false,msg:"No se pudo guardar. Revisa la conexión."}; }
+    },
+    async activarLocal(fila,activa){
+      try{ await cfgApi.actualizar("tiendas",`id=eq.${fila.id}`,{activa}); aplicarLocales(locales.map(l=>l.id===fila.id?{...l,activa}:l)); return {ok:true,msg:activa?`✓ ${fila.nombre} reabierta.`:`${fila.nombre} cerrada. Su historial se conserva.`}; }
+      catch(e){ return {ok:false,msg:"No se pudo guardar. Revisa la conexión."}; }
+    },
+    async guardarPinDuena(pin){ try{ await cfgApi.guardarClave("duena_pin",pin); }catch(e){} },
+  };
 
   const addFlag=async f=>{
     const flag={...f,hora:new Date()};
@@ -1545,7 +1745,7 @@ export default function HindicaApp(){
   if(mode==="selector")return W(<Selector onVendedora={()=>{setMode("vendedora");setScreen("login");}} onDuena={()=>setMode("duena_login")} onEntrenamiento={()=>setMode("entrenamiento")}/>);
   if(mode==="entrenamiento")return W(<ModoEntrenamiento onBack={()=>setMode("selector")}/>);
   if(mode==="duena_login")return W(<LoginDuena duenaPin={duenaPin} onSuccess={()=>setMode("duena")} onBack={()=>setMode("selector")}/>);
-  if(mode==="duena")return W(<PanelDuena allSales={allSales} allFlags={allFlags} allStock={allStock} setAllStock={setAllStock} vendedoras={vendedoras} setVendedoras={setVendedoras} duenaPin={duenaPin} setDuenaPin={setDuenaPin} tiendas={tiendas} setTiendas={setTiendas} ferias={ferias} setFerias={setFerias} quizStats={quizStats} onBack={()=>setMode("selector")}/>);
+  if(mode==="duena")return W(<PanelDuena cfg={cfg} allSales={allSales} allFlags={allFlags} allStock={allStock} setAllStock={setAllStock} vendedoras={vendedoras} setVendedoras={setVendedoras} duenaPin={duenaPin} setDuenaPin={setDuenaPin} tiendas={tiendas} setTiendas={setTiendas} ferias={ferias} setFerias={setFerias} quizStats={quizStats} onBack={()=>setMode("selector")}/>);
 
   if(screen==="login")return W(
     <div style={{minHeight:"100vh",background:C.dark,fontFamily:"system-ui,-apple-system,sans-serif"}}>
@@ -1570,4 +1770,3 @@ export default function HindicaApp(){
   if(screen==="cierre")return W(<Cierre tienda={tienda} seller={seller} sales={sales} cashMovements={cashMovements} fondo={opening?.fondo} onComplete={data=>{if(data.diferencia!==0)addFlag({titulo:"Diferencia en caja al cierre",detalle:`${data.diferencia<0?"Falta":"Sobra"} ${fmt(Math.abs(data.diferencia))} en ${tienda}`,tienda,nivel:"rojo"});setScreen("cerrado");}}/>);
   if(screen==="cerrado")return W(<TurnoCerrado tienda={tienda} seller={seller} sales={sales}/>);
 }
-
