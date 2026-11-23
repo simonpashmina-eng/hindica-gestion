@@ -59,6 +59,69 @@ const cfgApi = {
   async actualizar(tabla,filtro,datos){ const r=await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?${filtro}`,{method:"PATCH",headers:{...stockHeaders,Prefer:"return=minimal"},body:JSON.stringify(datos)}); if(!r.ok)throw new Error(await r.text()); },
   async guardarClave(clave,valor){ const r=await fetch(`${SUPABASE_URL}/rest/v1/config_app`,{method:"POST",headers:{...stockHeaders,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({clave,valor})}); if(!r.ok)throw new Error(await r.text()); },
 };
+// Fecha de una venta: usa "hora" si trae fecha completa; si no, la fecha en que se guardó (created_at)
+const fechaVenta = s => {
+  const h = s && s.hora ? new Date(s.hora) : null;
+  if (h && !isNaN(h) && String(s.hora).length > 10) return h;
+  const c = s && s.created_at ? new Date(s.created_at) : null;
+  if (c && !isNaN(c)) return c;
+  return h && !isNaN(h) ? h : null;
+};
+// Ventas: se cargan SIN fotos (livianas). Las fotos solo se piden en "Reposición".
+const COLS_VENTA="id,turno_id,vendedora,tienda,categoria,producto,color_base,estampado,color_acento,precio,medio_pago,hora,created_at";
+const ventaLocal = r => ({...r, colorBase:r.colorBase||r.color_base, colorAcento:r.colorAcento||r.color_acento, pago:r.pago||r.medio_pago});
+const ventasApi = {
+  async cargar(filtro=""){
+    try{
+      let r=await fetch(`${SUPABASE_URL}/rest/v1/ventas?select=${COLS_VENTA}${filtro}`,{headers:stockHeaders});
+      if(!r.ok) r=await fetch(`${SUPABASE_URL}/rest/v1/ventas?select=*${filtro}`,{headers:stockHeaders});
+      if(!r.ok) return null;
+      const d=await r.json(); return Array.isArray(d)?d.map(x=>{const {foto,...resto}=x;return ventaLocal(resto);}):null;
+    }catch(e){ return null; }
+  },
+  async fotosRecientes(){
+    try{ const r=await fetch(`${SUPABASE_URL}/rest/v1/ventas?select=id,foto,producto,color_base,tienda,vendedora,precio,hora,created_at&foto=not.is.null&order=id.desc&limit=40`,{headers:stockHeaders}); if(!r.ok)return []; const d=await r.json(); return Array.isArray(d)?d.map(ventaLocal):[]; }catch(e){ return []; }
+  },
+  // Guarda una venta. Si falla (sin señal, app cerrada), queda pendiente y se reintenta sola.
+  pendientes(){ try{ return JSON.parse(localStorage.getItem("hindica_ventas_pendientes")||"[]"); }catch(e){ return []; } },
+  guardarPendientes(l){ try{ localStorage.setItem("hindica_ventas_pendientes",JSON.stringify(l)); }catch(e){} },
+  async enviar(filaConT){
+    const {_t,...fila}=filaConT;
+    try{
+      const r=await fetch(`${SUPABASE_URL}/rest/v1/ventas`,{method:"POST",headers:{...stockHeaders,Prefer:"return=minimal"},body:JSON.stringify(fila)});
+      if(r.ok||r.status===409) return true;
+      const t=await r.text();
+      if(/cliente_id/.test(t)){ const {cliente_id,...sin}=fila; const r2=await fetch(`${SUPABASE_URL}/rest/v1/ventas`,{method:"POST",headers:{...stockHeaders,Prefer:"return=minimal"},body:JSON.stringify(sin)}); return r2.ok; }
+      return false;
+    }catch(e){ return false; }
+  },
+  async guardar(fila){
+    const pend=ventasApi.pendientes(); ventasApi.guardarPendientes([...pend,{...fila,_t:Date.now()}]);
+    const ok=await ventasApi.enviar(fila);
+    if(ok) ventasApi.guardarPendientes(ventasApi.pendientes().filter(x=>x.cliente_id!==fila.cliente_id));
+    return ok;
+  },
+  _enCurso:false,
+  async reintentar(){
+    if(ventasApi._enCurso)return; ventasApi._enCurso=true;
+    try{
+      const pend=ventasApi.pendientes(); if(!pend.length)return;
+      const listos=[];
+      for(const f of pend){ if(Date.now()-(f._t||0)<30000)continue; if(await ventasApi.enviar(f))listos.push(f.cliente_id); }
+      ventasApi.guardarPendientes(ventasApi.pendientes().filter(x=>!listos.includes(x.cliente_id)));
+    }finally{ ventasApi._enCurso=false; }
+  },
+};
+// Turno en curso: se guarda en el teléfono para que no se pierda si la página se recarga (p. ej. al abrir la cámara)
+const turnoGuardado = {
+  leer(){ try{ return JSON.parse(localStorage.getItem("hindica_turno")||"null"); }catch(e){ return null; } },
+  guardar(t){ try{ localStorage.setItem("hindica_turno",JSON.stringify(t)); }catch(e){} },
+  borrar(){ try{ localStorage.removeItem("hindica_turno"); }catch(e){} },
+};
+// Ofertas exclusivas para socias del Club
+const ofertaVigente = o => o.activa!==false && (!o.desde || o.desde<=hoyISO()) && (!o.hasta || o.hasta>=hoyISO());
+const buscarOferta = (ofertas,categoria,producto,colorBase) =>
+  (ofertas||[]).filter(ofertaVigente).find(o=>o.producto===producto&&(!o.categoria||o.categoria===categoria)&&(!o.color_base||o.color_base===colorBase));
 const hoyISO = () => new Date().toLocaleDateString("en-CA",{timeZone:"America/Santiago"});
 const localActivo = r => r.activa!==false && !(r.tipo==="feria" && r.fecha_fin && r.fecha_fin < hoyISO());
 const fmtDia = d => d ? new Date(d+"T12:00:00").toLocaleDateString("es-CL",{day:"numeric",month:"short",year:"numeric"}) : "";
@@ -159,9 +222,30 @@ const sInput={width:"100%",padding:"12px 16px",borderRadius:10,border:`1.5px sol
 const sCard=(x={})=>({background:C.white,borderRadius:16,padding:20,marginBottom:16,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",...x});
 const sBtn=(color=C.orange,full=false,x={})=>({background:color,color:C.white,border:"none",borderRadius:12,padding:"14px 20px",fontSize:16,fontWeight:700,cursor:"pointer",width:full?"100%":"auto",fontFamily:"inherit",...x});
 
+// Achica la foto (máx. 1000 px, JPEG) para que el teléfono no se quede sin memoria
+function comprimirFoto(file){
+  return new Promise(res=>{
+    const leerOriginal=()=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(file);};
+    try{
+      const url=URL.createObjectURL(file); const img=new Image();
+      img.onload=()=>{
+        try{
+          const max=1000; let w=img.naturalWidth, h=img.naturalHeight;
+          if(w>h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;}
+          const cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+          cv.getContext("2d").drawImage(img,0,0,w,h);
+          URL.revokeObjectURL(url); res(cv.toDataURL("image/jpeg",0.7));
+        }catch(e){ URL.revokeObjectURL(url); leerOriginal(); }
+      };
+      img.onerror=()=>{URL.revokeObjectURL(url);leerOriginal();};
+      img.src=url;
+    }catch(e){ leerOriginal(); }
+  });
+}
+
 function FotoInput({label,value,onChange,required=false}){
   const ref=useRef();
-  const handle=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>onChange(ev.target.result);r.readAsDataURL(file);};
+  const handle=e=>{const file=e.target.files[0];if(!file)return;comprimirFoto(file).then(onChange);e.target.value="";};
   return(
     <div style={{marginBottom:16}}>
       <div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>{label}{required&&<span style={{color:C.red}}> *</span>}</div>
@@ -640,10 +724,12 @@ function LoginVendedora({vendedoras,tiendas,onStart}){
   const [tienda,setTienda]=useState("");
   const [nombre,setNombre]=useState("");
   const [error,setError]=useState("");
-  const handlePin=pin=>{
+  const handlePin=async pin=>{
     const v=vendedoras.find(v=>v.nombre===nombre);
-    if(v&&v.pin===pin){onStart(tienda,nombre);}
-    else{setError("PIN incorrecto. Intenta de nuevo.");}
+    if(v&&v.pin===pin)return onStart(tienda,nombre);
+    const r=await cfgApi.leer("vendedoras",`&nombre=eq.${encodeURIComponent(nombre)}`);
+    if(r&&r.some(x=>x.pin===pin&&x.activa!==false))return onStart(tienda,nombre);
+    setError("PIN incorrecto. Intenta de nuevo.");
   };
   if(step==="tienda")return(
     <div style={{background:C.bg,borderRadius:"28px 28px 0 0",padding:"32px 24px",minHeight:"55vh"}}>
@@ -662,9 +748,47 @@ function LoginVendedora({vendedoras,tiendas,onStart}){
   if(step==="pin")return(<PinInput title={`Hola, ${nombre}`} subtitle={`Ingresa tu PIN de 4 dígitos${vendedoras.find(v=>v.nombre===nombre)?.pin==="1234"?"\nPIN por defecto: 1234":""}`} color={C.dark} error={error} onPin={handlePin}/>);
 }
 
-function LoginDuena({duenaPin,onSuccess,onBack}){
+function Puerta({onEntrar}){
+  const [codigo,setCodigo]=useState("");
   const [error,setError]=useState("");
-  const handlePin=pin=>{if(pin===duenaPin)onSuccess();else setError("PIN incorrecto.");};
+  const [cargando,setCargando]=useState(false);
+  const entrar=async()=>{
+    if(!codigo.trim())return;
+    setCargando(true);setError("");
+    const r=await cfgApi.leer("config_app","&clave=eq.codigo_acceso");
+    setCargando(false);
+    if(r===null)return setError("Sin conexión. Revisa el internet e intenta de nuevo.");
+    const real=r[0]&&r[0].valor;
+    if(!real||codigo.trim().toLowerCase()===real.toLowerCase())return onEntrar(real||"");
+    setError("Código incorrecto.");
+  };
+  return(
+    <div style={{minHeight:"100vh",background:C.dark,fontFamily:"system-ui,-apple-system,sans-serif",display:"flex",flexDirection:"column",justifyContent:"center",padding:"0 28px"}}>
+      <div style={{textAlign:"center",marginBottom:36}}>
+        <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",letterSpacing:"5px",textTransform:"uppercase",marginBottom:10}}>Bienvenida a la app</div>
+        <div style={{fontSize:44,fontWeight:900,color:C.white,letterSpacing:"8px"}}>HINDICA</div>
+        <div style={{width:40,height:3,background:C.orange,margin:"14px auto"}}/>
+        <div style={{fontSize:14,color:"rgba(255,255,255,0.55)"}}>Solo para el equipo Hindica</div>
+      </div>
+      <input type="password" value={codigo} onChange={e=>setCodigo(e.target.value)} onKeyDown={e=>e.key==="Enter"&&entrar()} placeholder="Código de entrada" autoComplete="off"
+        style={{...sInput,textAlign:"center",fontSize:18,padding:"16px",marginBottom:12}}/>
+      <button onClick={entrar} disabled={cargando||!codigo.trim()} style={{...sBtn(C.orange,true),padding:"16px",fontSize:17,borderRadius:14,opacity:codigo.trim()?1:0.5}}>{cargando?"Revisando…":"Entrar"}</button>
+      {error&&<div style={{marginTop:14,textAlign:"center",color:"#FFB4A8",fontSize:14,fontWeight:600}}>{error}</div>}
+      <div style={{marginTop:24,textAlign:"center",fontSize:12,color:"rgba(255,255,255,0.35)"}}>Este teléfono lo recordará: solo se ingresa una vez.</div>
+    </div>
+  );
+}
+
+function LoginDuena({duenaPin,onSuccess,onBack,onPinGuardado}){
+  const [error,setError]=useState("");
+  const handlePin=async pin=>{
+    if(pin===duenaPin)return onSuccess();
+    const r=await cfgApi.leer("config_app","&clave=eq.duena_pin");
+    const guardado=r&&r[0]&&r[0].valor;
+    if(guardado&&onPinGuardado)onPinGuardado(guardado);
+    if(guardado?pin===guardado:pin===DUENA_PIN_DEFAULT)return onSuccess();
+    setError("PIN incorrecto.");
+  };
   return(<div style={{position:"relative"}}><button onClick={onBack} style={{position:"absolute",top:20,left:20,zIndex:10,background:"rgba(255,255,255,0.1)",border:"none",color:C.white,borderRadius:8,padding:"6px 14px",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>← Volver</button><PinInput title="Panel Dueña" subtitle="Ingresa tu código secreto" color={C.purple} error={error} onPin={handlePin}/></div>);
 }
 
@@ -934,7 +1058,7 @@ function StockTienda({tienda,seller,allStock,setAllStock,addFlag,onBack}){
   );
 }
 
-function PanelDuena({cfg,allSales,allFlags,allStock,setAllStock,vendedoras,setVendedoras,duenaPin,setDuenaPin,tiendas,setTiendas,ferias,setFerias,quizStats,onBack}){
+function PanelDuena({cfg,recargar,allSales,allFlags,allStock,setAllStock,vendedoras,setVendedoras,duenaPin,setDuenaPin,tiendas,setTiendas,ferias,setFerias,quizStats,onBack}){
   const [tab,setTab]=useState("hoy");
   const [subScreen,setSubScreen]=useState("");
   const [newNombre,setNewNombre]=useState("");
@@ -950,9 +1074,12 @@ function PanelDuena({cfg,allSales,allFlags,allStock,setAllStock,vendedoras,setVe
 
 
   const [periodo,setPeriodo]=useState("hoy");
+  const [fotosRepo,setFotosRepo]=useState(null);
+  useEffect(()=>{ if(tab==="reposicion"&&fotosRepo===null){ ventasApi.fotosRecientes().then(setFotosRepo); } },[tab]); // eslint-disable-line
+  const [actualizando,setActualizando]=useState(false);
   const inicioPeriodo=(()=>{const d=new Date();d.setHours(0,0,0,0);if(periodo==="semana")d.setDate(d.getDate()-((d.getDay()+6)%7));if(periodo==="mes")d.setDate(1);return d;})();
   const nombrePeriodo={hoy:"hoy",semana:"esta semana",mes:"este mes"}[periodo];
-  const ventasP=allSales.filter(s=>new Date(s.hora)>=inicioPeriodo).sort((a,b)=>new Date(b.hora)-new Date(a.hora));
+  const ventasP=allSales.filter(s=>{const f=fechaVenta(s);return f&&f>=inicioPeriodo;}).sort((a,b)=>(fechaVenta(b)||0)-(fechaVenta(a)||0));
   const pagoDe=s=>s.pago||s.medio_pago;
   const totalHoy=ventasP.reduce((a,s)=>a+(s.precio||0),0);
   const byTienda=tiendas.map(t=>({tienda:t,ventas:ventasP.filter(s=>s.tienda===t),total:ventasP.filter(s=>s.tienda===t).reduce((a,s)=>a+(s.precio||0),0)}));
@@ -1016,6 +1143,7 @@ function PanelDuena({cfg,allSales,allFlags,allStock,setAllStock,vendedoras,setVe
           <div style={{flex:2,background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"14px"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.45)",textTransform:"uppercase"}}>Total {nombrePeriodo}</div><div style={{fontSize:22,fontWeight:800,color:C.gold,marginTop:4}}>{fmt(totalHoy)}</div></div>
           <div style={{background:allFlags.length>0?C.red:"rgba(255,255,255,0.1)",borderRadius:14,padding:"14px 16px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.6)",textTransform:"uppercase"}}>Alertas</div><div style={{fontSize:26,fontWeight:900,color:C.white}}>{allFlags.length}</div></div>
         </div>
+        <button onClick={async()=>{setActualizando(true);await recargar();setActualizando(false);}} style={{width:"100%",marginBottom:8,padding:"8px",borderRadius:10,border:"1px solid rgba(255,255,255,0.25)",background:"transparent",color:"rgba(255,255,255,0.85)",fontFamily:"inherit",fontSize:13,fontWeight:600,cursor:"pointer"}}>{actualizando?"Actualizando…":"↻ Actualizar ventas"}</button>
         <div style={{display:"flex",gap:6,marginBottom:14}}>
           {[["hoy","Hoy"],["semana","Esta semana"],["mes","Este mes"]].map(([id,l])=>(<button key={id} onClick={()=>setPeriodo(id)} style={{flex:1,padding:"8px 6px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700,background:periodo===id?C.white:"rgba(255,255,255,0.12)",color:periodo===id?C.purple:"rgba(255,255,255,0.75)"}}>{l}</button>))}
         </div>
@@ -1032,7 +1160,7 @@ function PanelDuena({cfg,allSales,allFlags,allStock,setAllStock,vendedoras,setVe
 
         {tab==="alertas"&&<>{allFlags.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{fontSize:16,fontWeight:700,color:C.green}}>¡Todo en orden!</div></div>:allFlags.map((flag,i)=>(<div key={i} style={{...sCard(),borderLeft:`4px solid ${flag.nivel==="rojo"?C.red:C.gold}`}}><div style={{fontSize:14,fontWeight:800,color:flag.nivel==="rojo"?C.red:C.gold}}>{flag.nivel==="rojo"?"🔴":"🟡"} {flag.titulo}</div><div style={{fontSize:13,color:C.muted,marginTop:4}}>{flag.detalle}</div><div style={{fontSize:11,color:C.muted,marginTop:6}}>{flag.tienda} · {fmtTime(flag.hora)}</div></div>))}</>}
 
-        {tab==="ventas"&&<>{ventasP.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Aún no hay ventas {nombrePeriodo}.</div></div>:ventasP.map((sale,i)=>(<div key={i} style={sCard({padding:14})}><div style={{display:"flex",gap:12,alignItems:"center"}}>{sale.foto&&<img src={sale.foto} alt="" style={{width:60,height:60,borderRadius:10,objectFit:"cover",flexShrink:0}}/>}<div style={{flex:1}}><div style={{fontSize:14,fontWeight:800}}>{sale.producto}</div><div style={{fontSize:12,color:C.muted}}>{(sale.colorBase||sale.color_base)}{sale.estampado&&sale.estampado!=="-"?` · ${sale.estampado}`:""}</div><div style={{fontSize:11,color:C.muted}}>{sale.tienda} · {sale.vendedora} · {fmtTime(sale.hora)}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:15,fontWeight:800}}>{fmt(sale.precio)}</div><div style={{fontSize:11,color:C.muted}}>{MEDIOS_PAGO.find(p=>p.id===(sale.pago||sale.medio_pago))?.label}</div></div></div></div>))}</>}
+        {tab==="ventas"&&<>{ventasP.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Aún no hay ventas {nombrePeriodo}.</div></div>:ventasP.map((sale,i)=>(<div key={i} style={sCard({padding:14})}><div style={{display:"flex",gap:12,alignItems:"center"}}>{sale.foto&&<img src={sale.foto} alt="" style={{width:60,height:60,borderRadius:10,objectFit:"cover",flexShrink:0}}/>}<div style={{flex:1}}><div style={{fontSize:14,fontWeight:800}}>{sale.producto}</div><div style={{fontSize:12,color:C.muted}}>{(sale.colorBase||sale.color_base)}{sale.estampado&&sale.estampado!=="-"?` · ${sale.estampado}`:""}</div><div style={{fontSize:11,color:C.muted}}>{sale.tienda} · {sale.vendedora} · {fechaVenta(sale)?fmtTime(fechaVenta(sale)):""}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:15,fontWeight:800}}>{fmt(sale.precio)}</div><div style={{fontSize:11,color:C.muted}}>{MEDIOS_PAGO.find(p=>p.id===(sale.pago||sale.medio_pago))?.label}</div></div></div></div>))}</>}
 
         {tab==="inventario"&&<>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
@@ -1099,13 +1227,16 @@ function PanelDuena({cfg,allSales,allFlags,allStock,setAllStock,vendedoras,setVe
             <div style={{fontSize:14,fontWeight:800,color:C.orange,marginBottom:6}}>💡 Referencia para reposición</div>
             <div style={{fontSize:13,color:C.muted,lineHeight:1.6}}>Fotos de lo vendido para buscar estampados similares al comprar.</div>
           </div>
-          {allSales.filter(s=>s.foto).length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Las fotos aparecerán aquí.</div></div>
-            :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{allSales.filter(s=>s.foto).map((sale,i)=>(<div key={i} style={{background:C.white,borderRadius:14,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}><img src={sale.foto} alt="" style={{width:"100%",height:120,objectFit:"cover",display:"block"}}/><div style={{padding:"10px 12px"}}><div style={{fontSize:12,fontWeight:700}}>{sale.producto}</div><div style={{fontSize:11,color:C.muted}}>{sale.colorBase}{sale.estampado&&sale.estampado!=="-"?` · ${sale.estampado}`:""}</div><div style={{fontSize:11,color:C.orange,fontWeight:700,marginTop:4}}>{fmt(sale.precio)}</div></div></div>))}</div>
+          {fotosRepo===null?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Cargando fotos…</div></div>
+            :fotosRepo.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Las fotos aparecerán aquí.</div></div>
+            :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{fotosRepo.map((sale,i)=>(<div key={i} style={{background:C.white,borderRadius:14,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}><img src={sale.foto} alt="" style={{width:"100%",height:120,objectFit:"cover",display:"block"}}/><div style={{padding:"10px 12px"}}><div style={{fontSize:12,fontWeight:700}}>{sale.producto}</div><div style={{fontSize:11,color:C.muted}}>{sale.colorBase}{sale.estampado&&sale.estampado!=="-"?` · ${sale.estampado}`:""}</div><div style={{fontSize:11,color:C.orange,fontWeight:700,marginTop:4}}>{fmt(sale.precio)}</div></div></div>))}</div>
           }
         </>}
 
         {tab==="config"&&<>
           <ConfigEquipo cfg={cfg} allSales={allSales}/>
+          <OfertasSocias cfg={cfg}/>
+          <CodigoEntrada cfg={cfg}/>
           <div style={sCard()}>
             <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>🔐 Cambiar mi PIN</div>
             <input style={{...sInput,marginBottom:10}} placeholder="Nuevo PIN de 4 dígitos" maxLength={4} type="password" value={editDuenaPin} onChange={e=>setEditDuenaPin(e.target.value.replace(/\D/g,""))}/>
@@ -1115,6 +1246,69 @@ function PanelDuena({cfg,allSales,allFlags,allStock,setAllStock,vendedoras,setVe
           <ConfigLocales cfg={cfg} allSales={allSales}/>
         </>}
       </div>
+    </div>
+  );
+}
+
+function OfertasSocias({cfg}){
+  const [cat,setCat]=useState("");
+  const [prod,setProd]=useState("");
+  const [color,setColor]=useState("");
+  const [precio,setPrecio]=useState("");
+  const [desde,setDesde]=useState("");
+  const [hasta,setHasta]=useState("");
+  const [msg,setMsg]=useState(null);
+  const lista=cfg.ofertas||[];
+  const prods=cat?(cat==="Joyería"?JOYERIA_ITEMS:(ROPA_ITEMS[cat]||[])):[];
+  const listo=cat&&prod&&Number(precio)>0;
+  const crear=async()=>{const r=await cfg.agregarOferta({categoria:cat,producto:prod,color_base:color||null,precio:Number(precio),desde:desde||null,hasta:hasta||null});setMsg(r);if(r.ok){setCat("");setProd("");setColor("");setPrecio("");setDesde("");setHasta("");}};
+  const estado=o=>o.activa===false?"Desactivada":ofertaVigente(o)?"Activa":(o.desde&&o.desde>hoyISO()?`Empieza ${fmtDia(o.desde)}`:"Terminada");
+  return(
+    <div style={sCard({border:`2px solid ${C.gold}`})}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>⭐ Ofertas exclusivas socias</div>
+      <div style={{fontSize:13,color:C.muted,marginBottom:12}}>Precio especial solo para socias, y además se aplica su descuento de socia (5%, o 20% en su compra de bienvenida). Si la clienta no es socia, la app le sugiere a la vendedora ofrecerle el Club.</div>
+      {lista.length===0&&<div style={{fontSize:13,color:C.muted,marginBottom:8}}>Aún no hay ofertas.</div>}
+      {lista.map(o=>(
+        <div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{minWidth:0}}><div style={{fontSize:15,fontWeight:700,color:ofertaVigente(o)?C.text:C.muted}}>{o.producto}{o.color_base?` · ${o.color_base}`:""} · {fmt(o.precio)}</div>
+            <div style={{fontSize:12,color:ofertaVigente(o)?C.green:C.muted,fontWeight:600}}>{estado(o)}{o.hasta?` · hasta ${fmtDia(o.hasta)}`:" · sin fecha de término"}</div></div>
+          <button onClick={async()=>setMsg(await cfg.activarOferta(o,o.activa===false))} style={{...btnMini(o.activa===false?C.green:C.border),color:o.activa===false?C.white:C.text,flexShrink:0}}>{o.activa===false?"Activar":"Desactivar"}</button>
+        </div>
+      ))}
+      <div style={{marginTop:14,background:C.bg,borderRadius:12,padding:12}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:8}}>Nueva oferta</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>{[...Object.keys(ROPA_ITEMS),"Joyería"].map(x=><TagBtn key={x} label={x} active={cat===x} onClick={()=>{setCat(x);setProd("");}}/>)}</div>
+        {cat&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>{prods.map(x=><TagBtn key={x} label={x} active={prod===x} color={C.gold} bgActive="#FFF6E5" onClick={()=>setProd(x)}/>)}</div>}
+        {prod&&<>
+          <div style={{fontSize:12,color:C.muted,margin:"4px 0 6px"}}>Color (opcional: si no eliges, vale para todos los colores)</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>{COLORES.map(x=><TagBtn key={x} label={x} active={color===x} onClick={()=>setColor(color===x?"":x)}/>)}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:16,fontWeight:700,color:C.muted}}>$</span><input type="number" style={sInput} placeholder="Precio para socias" value={precio} onChange={e=>setPrecio(e.target.value)}/></div>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:C.muted,marginBottom:4}}>Desde (opcional)</div><input style={{...sInput,minWidth:0,padding:"12px 8px"}} type="date" value={desde} onChange={e=>setDesde(e.target.value)}/></div>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:C.muted,marginBottom:4}}>Hasta (opcional)</div><input style={{...sInput,minWidth:0,padding:"12px 8px"}} type="date" value={hasta} onChange={e=>setHasta(e.target.value)}/></div>
+          </div>
+        </>}
+        <button disabled={!listo} onClick={crear} style={{...sBtn(listo?C.gold:C.border,true),borderRadius:10,padding:"12px",opacity:listo?1:0.5}}>+ Crear oferta</button>
+      </div>
+      <MsgLinea msg={msg}/>
+    </div>
+  );
+}
+
+function CodigoEntrada({cfg}){
+  const [v,setV]=useState("");
+  const [msg,setMsg]=useState(null);
+  const guardar=async()=>{
+    try{ await cfg.guardarCodigoAcceso(v.trim()); setMsg({ok:true,msg:"✓ Código guardado. Los teléfonos que tenían el código anterior lo pedirán de nuevo."}); setV(""); }
+    catch(e){ setMsg({ok:false,msg:"No se pudo guardar. Revisa la conexión."}); }
+  };
+  return(
+    <div style={sCard()}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>🚪 Código de entrada a la app</div>
+      <div style={{fontSize:13,color:C.muted,marginBottom:10}}>Se pide una vez en cada teléfono. Quien no lo sepa no puede pasar de la pantalla de bienvenida.</div>
+      <input style={{...sInput,marginBottom:10}} placeholder="Nuevo código (mínimo 4 letras o números)" value={v} onChange={e=>setV(e.target.value)} autoComplete="off"/>
+      <button disabled={v.trim().length<4} onClick={guardar} style={{...sBtn(v.trim().length>=4?C.dark:C.border,true),borderRadius:10,padding:"12px",opacity:v.trim().length>=4?1:0.5}}>Guardar código</button>
+      <MsgLinea msg={msg}/>
     </div>
   );
 }
@@ -1199,7 +1393,7 @@ function HistorialLocal({local,allSales,onClose}){
   const total=ventas.reduce((a,s)=>a+(s.precio||0),0);
   const porVend={}; ventas.forEach(s=>{const k=s.vendedora||"—";porVend[k]=porVend[k]||{n:0,t:0};porVend[k].n++;porVend[k].t+=s.precio||0;});
   const filas=Object.entries(porVend).sort((a,b)=>b[1].t-a[1].t);
-  const fechas=ventas.map(s=>new Date(s.hora)).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
+  const fechas=ventas.map(fechaVenta).filter(Boolean).sort((a,b)=>a-b);
   return(
     <div style={{...sCard(),border:`2px solid ${C.dark}`}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -1453,7 +1647,7 @@ function ClubCaja({tienda,club,setClub}){
   );
 }
 
-function NuevaVenta({seller,tienda,onSave,onBack}){
+function NuevaVenta({ofertas,seller,tienda,onSave,onBack}){
   const [categoria,setCategoria]=useState("");
   const [producto,setProducto]=useState("");
   const [colorBase,setColorBase]=useState("");
@@ -1466,11 +1660,14 @@ function NuevaVenta({seller,tienda,onSave,onBack}){
   const [guardando,setGuardando]=useState(false);
   const [errorGuardar,setErrorGuardar]=useState("");
   const socia=club.socia;
+  const oferta=producto?buscarOferta(ofertas,categoria,producto,colorBase):null;
+  const conOferta=!!(socia&&oferta);   // precio especial de socia; además se aplica su 5% (o 20% de bienvenida)
   const descuento=socia?(socia.bienvenida_disponible?20:5):0;
-  const precioFinal=precio?Math.round(Number(precio)*(100-descuento)/100):0;
+  const precioBase=conOferta?oferta.precio:(precio?Number(precio):0);
+  const precioFinal=precioBase?Math.round(precioBase*(100-descuento)/100):0;
   const esJoy=JOYERIA_ITEMS.includes(producto);
   const todosProds=categoria?(categoria==="Joyería"?JOYERIA_ITEMS:(ROPA_ITEMS[categoria]||[])):[];
-  const canSave=club.decidido&&producto&&colorBase&&foto&&precio&&pago&&(esJoy||colorAcento);
+  const canSave=club.decidido&&producto&&colorBase&&foto&&(precio||conOferta)&&pago&&(esJoy||colorAcento);
   const guardar=async()=>{
     setErrorGuardar("");
     if(socia){
@@ -1479,7 +1676,7 @@ function NuevaVenta({seller,tienda,onSave,onBack}){
       setGuardando(false);
       if(!r.ok){ setErrorGuardar(r.error||"No se pudo registrar el descuento del Club."); return; }
     }
-    onSave({hora:new Date(),vendedora:seller,tienda,categoria,producto,colorBase,estampado:"-",colorAcento:esJoy?"-":colorAcento,foto,precio:precioFinal,precioLista:Number(precio),descuentoClub:descuento,pago,numeroSocia:socia?socia.numero:null,nombreSocia:socia?socia.nombre:null});
+    onSave({hora:new Date(),vendedora:seller,tienda,categoria,producto,colorBase,estampado:"-",colorAcento:esJoy?"-":colorAcento,foto,precio:precioFinal,precioLista:precio?Number(precio):null,descuentoClub:conOferta?`oferta+${descuento}%`:descuento,pago,numeroSocia:socia?socia.numero:null,nombreSocia:socia?socia.nombre:null});
   };
   return(
     <div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}>
@@ -1507,21 +1704,30 @@ function NuevaVenta({seller,tienda,onSave,onBack}){
           <div style={{fontSize:13,color:C.muted,marginBottom:14}}>{esJoy?"Foto clara de la joyería vendida.":"Foto del estampado del artículo."}</div>
           <FotoInput label="Foto" value={foto} onChange={setFoto} required/>
         </div>}
+        {oferta&&club.decidido&&!socia&&<div style={sCard({background:"#FFF6E5",border:`2px solid ${C.gold}`})}>
+          <div style={{fontSize:15,fontWeight:800,color:C.gold,marginBottom:6}}>⭐ Oferta exclusiva para socias</div>
+          <div style={{fontSize:14,lineHeight:1.5,marginBottom:12}}>Dile: <b>"Este {producto.toLowerCase()} tiene precio especial para socias del Club: {fmt(oferta.precio)}. ¿Te unes? Es gratis, y hoy además tienes 20% de bienvenida: lo llevas a {fmt(Math.round(oferta.precio*0.8))}."</b></div>
+          <button onClick={()=>setClub({decidido:false,socia:null})} style={{...sBtn(C.gold,true),fontSize:14,padding:"12px"}}>Se unió · buscar su número</button>
+        </div>}
         {foto&&<div style={sCard()}>
           <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>Precio y pago</div>
-          <div style={{marginBottom:16}}>
+          {conOferta&&<div style={{marginBottom:16,background:"#FFF6E5",border:`2px solid ${C.gold}`,borderRadius:12,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:13,color:C.gold,fontWeight:800}}>⭐ Oferta socia {fmt(oferta.precio)}<br/><span style={{fontWeight:400,color:C.text}}>+ {descuento}% {descuento===20?"de bienvenida":"de socia"}: −{fmt(oferta.precio-precioFinal)}</span></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:11,color:C.muted,textTransform:"uppercase",fontWeight:700}}>A cobrar</div><div style={{fontSize:22,fontWeight:900,color:C.green}}>{fmt(precioFinal)}</div></div>
+          </div>}
+          {!conOferta&&<div style={{marginBottom:16}}>
             <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:8}}>{descuento?"Precio normal (de la etiqueta)":"Precio"}</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:700,color:C.muted}}>$</span><input type="number" style={sInput} placeholder="0" value={precio} onChange={e=>setPrecio(e.target.value)}/></div>
             {descuento>0&&precio&&<div style={{marginTop:10,background:"#E8F5EE",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div style={{fontSize:13,color:C.green,fontWeight:700}}>Club {descuento}% {descuento===20?"(bienvenida)":""}<br/><span style={{fontWeight:400}}>Descuento: {fmt(Number(precio)-precioFinal)}</span></div>
               <div style={{textAlign:"right"}}><div style={{fontSize:11,color:C.muted,textTransform:"uppercase",fontWeight:700}}>A cobrar</div><div style={{fontSize:22,fontWeight:900,color:C.green}}>{fmt(precioFinal)}</div></div>
             </div>}
-          </div>
+          </div>}
           <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10}}>Medio de pago</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{MEDIOS_PAGO.map(p=>(<button key={p.id} onClick={()=>setPago(p.id)} style={{padding:"14px",borderRadius:12,fontFamily:"inherit",border:`2px solid ${pago===p.id?C.dark:C.border}`,background:pago===p.id?C.dark:C.white,color:pago===p.id?C.white:C.text,fontSize:15,fontWeight:700,cursor:"pointer"}}>{p.icon} {p.label}</button>))}</div>
         </div>}
         {errorGuardar&&<div style={{background:"#FDECEA",color:C.red,borderRadius:12,padding:"12px 14px",fontSize:14,marginBottom:12}}>{errorGuardar}</div>}
-        {canSave&&<button disabled={guardando} onClick={guardar} style={{...sBtn(C.green,true),padding:"18px",fontSize:17,borderRadius:16,opacity:guardando?0.6:1}}>{guardando?"Guardando…":`✓ Guardar venta${descuento?` · cobrar ${fmt(precioFinal)}`:""}`}</button>}
+        {canSave&&<button disabled={guardando} onClick={guardar} style={{...sBtn(C.green,true),padding:"18px",fontSize:17,borderRadius:16,opacity:guardando?0.6:1}}>{guardando?"Guardando…":`✓ Guardar venta${descuento||conOferta?` · cobrar ${fmt(precioFinal)}`:""}`}</button>}
       </div>
     </div>
   );
@@ -1664,6 +1870,15 @@ export default function HindicaApp(){
     stockRef.current = next; _setAllStock(next);
     stockDb.sincronizar(prev, next);
   };
+  const recargarVentas = async () => {
+    try{
+      await ventasApi.reintentar();
+      const [s,a]=await Promise.all([ventasApi.cargar(),db.get("alertas",{})]);
+      if(Array.isArray(s))setAllSales(s);
+      if(Array.isArray(a))setAllFlags(a.filter(x=>!x.vista));
+    }catch(e){}
+  };
+  const guardarCodigoAcceso = async v => { await cfgApi.guardarClave("codigo_acceso", v); recordarCodigo(v); };
   const recargarStock = async () => { const r = await stockDb.cargar(); if (r) { stockRef.current = r; _setAllStock(r); } };
   const [ferias,setFerias]      = useState([]);
   const [quizStats,setQuizStats]= useState([]);
@@ -1676,11 +1891,19 @@ export default function HindicaApp(){
   const aplicarLocales = rows => { setLocales(rows); const act=rows.filter(localActivo); if(act.length)setTiendas(act.map(x=>x.nombre)); };
   const [duenaPin,setDuenaPin]  = useState(DUENA_PIN_DEFAULT);
   const [turnoId,setTurnoId]    = useState(null);
+  const [avisoPendiente,setAvisoPendiente] = useState(false);
+  const [ofertas,setOfertas] = useState([]);
+  const cargarOfertas = async () => { const r=await cfgApi.leer("ofertas_socias"); if(r)setOfertas(r); };
+  // Puerta de entrada: el código se recuerda en cada teléfono; si la dueña lo cambia, se pide de nuevo
+  const [acceso,setAcceso] = useState("revisando"); // "revisando" | "ok" | "pedir"
+  const codigoRecordado = () => { try{ return localStorage.getItem("hindica_acceso"); }catch(e){ return null; } };
+  const recordarCodigo = v => { try{ localStorage.setItem("hindica_acceso", v); }catch(e){} };
 
   useEffect(()=>{
     const load=async()=>{
       try{
-        const [v,t,s,a]=await Promise.all([db.get("vendedoras",{}),db.get("tiendas",{}),db.get("ventas",{}),db.get("alertas",{})]);
+        ventasApi.reintentar();
+        const [v,t,s,a]=await Promise.all([db.get("vendedoras",{}),db.get("tiendas",{}),ventasApi.cargar(),db.get("alertas",{})]);
         if(Array.isArray(v)){
           if(v.length>0)aplicarEquipo(v);
           else{ try{ const creadas=[]; for(const d of VENDEDORAS_DEFAULT)creadas.push(await cfgApi.insertar("vendedoras",{nombre:d.nombre,pin:d.pin,activa:true})); aplicarEquipo(creadas); }catch(e){} }
@@ -1699,7 +1922,42 @@ export default function HindicaApp(){
   },[]);
 
   useEffect(()=>{const t=setInterval(()=>setNow(new Date()),30000);return()=>clearInterval(t);},[]);
-  useEffect(()=>{ recargarStock(); },[]); // eslint-disable-line
+  useEffect(()=>{ recargarStock(); cargarOfertas(); },[]); // eslint-disable-line
+  useEffect(()=>{ if(screen==="newSale"||mode==="duena") cargarOfertas(); },[screen,mode]); // eslint-disable-line
+  useEffect(()=>{
+    (async()=>{
+      const guardado=codigoRecordado();
+      const r=await cfgApi.leer("config_app","&clave=eq.codigo_acceso");
+      if(r===null){ setAcceso(guardado!==null?"ok":"pedir"); return; }          // sin internet: deja pasar a quien ya había entrado
+      const real=r[0]&&r[0].valor;
+      if(!real){ setAcceso("ok"); return; }                                       // aún no hay código configurado
+      setAcceso(guardado&&guardado.toLowerCase()===real.toLowerCase()?"ok":"pedir");
+    })();
+  },[]);
+  // Si la página se recargó en medio de un turno, retomarlo donde estaba
+  useEffect(()=>{
+    const t=turnoGuardado.leer();
+    if(!t||t.fecha!==hoyISO()){ turnoGuardado.borrar(); return; }
+    setMode("vendedora"); setTienda(t.tienda); setSeller(t.seller); setShiftStart(new Date(t.shiftStart));
+    setOpening(t.opening||{}); setTurnoId(t.turnoId||null); setCashMovements(t.cashMovements||[]);
+    if(t.lastCheck)setLastCheck(new Date(t.lastCheck));
+    setScreen("shift");
+    (async()=>{
+      await ventasApi.reintentar();
+      const desde=new Date(t.shiftStart); desde.setMinutes(desde.getMinutes()-5);
+      const r=await ventasApi.cargar(`&vendedora=eq.${encodeURIComponent(t.seller)}&tienda=eq.${encodeURIComponent(t.tienda)}`);
+      const delTurno=(r||[]).filter(x=>{const f=fechaVenta(x);return t.turnoId?x.turno_id===t.turnoId||(f&&f>=desde):(f&&f>=desde);});
+      const pend=ventasApi.pendientes().filter(x=>x.vendedora===t.seller&&x.tienda===t.tienda).map(ventaLocal);
+      setSales([...delTurno,...pend].map(x=>({...x,hora:fechaVenta(x)||x.hora})));
+    })();
+  },[]); // eslint-disable-line
+  const turnoActivo=mode==="vendedora"&&["shift","newSale","chequeo","salidaCaja","insumos","verStock","cierre"].includes(screen);
+  useEffect(()=>{
+    if(screen==="cerrado"){ turnoGuardado.borrar(); return; }
+    if(turnoActivo&&seller&&tienda) turnoGuardado.guardar({fecha:hoyISO(),tienda,seller,shiftStart:shiftStart||new Date(),
+      opening:opening?{fondo:opening.fondo,insumos:opening.insumos,notas:opening.notas}:{},turnoId,cashMovements,lastCheck});
+  },[turnoActivo,screen,seller,tienda,shiftStart,opening,turnoId,cashMovements,lastCheck]); // eslint-disable-line
+  useEffect(()=>{ if(mode==="duena") recargarVentas(); },[mode]); // eslint-disable-line
   useEffect(()=>{ if(mode==="duena"||screen==="verStock"||screen==="newSale"||screen==="shift") recargarStock(); },[mode,screen]); // eslint-disable-line
 
   const cfg = {
@@ -1758,10 +2016,14 @@ export default function HindicaApp(){
 
   const W=c=><div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh"}}>{c}</div>;
 
+  if(acceso==="revisando")return W(<div style={{minHeight:"100vh",background:C.dark}}/>);
+  if(acceso==="pedir")return W(<Puerta onEntrar={v=>{recordarCodigo(v);setAcceso("ok");}}/>);
   if(mode==="selector")return W(<Selector onVendedora={()=>{setMode("vendedora");setScreen("login");}} onDuena={()=>setMode("duena_login")} onEntrenamiento={()=>setMode("entrenamiento")}/>);
   if(mode==="entrenamiento")return W(<ModoEntrenamiento onBack={()=>setMode("selector")}/>);
-  if(mode==="duena_login")return W(<LoginDuena duenaPin={duenaPin} onSuccess={()=>setMode("duena")} onBack={()=>setMode("selector")}/>);
-  if(mode==="duena")return W(<PanelDuena cfg={cfg} allSales={allSales} allFlags={allFlags} allStock={allStock} setAllStock={setAllStock} vendedoras={vendedoras} setVendedoras={setVendedoras} duenaPin={duenaPin} setDuenaPin={setDuenaPin} tiendas={tiendas} setTiendas={setTiendas} ferias={ferias} setFerias={setFerias} quizStats={quizStats} onBack={()=>setMode("selector")}/>);
+  if(mode==="duena_login")return W(<LoginDuena duenaPin={duenaPin} onPinGuardado={setDuenaPin} onSuccess={()=>setMode("duena")} onBack={()=>setMode("selector")}/>);
+  if(mode==="duena")return W(<PanelDuena cfg={{...cfg,guardarCodigoAcceso,ofertas,
+      async agregarOferta(o){ try{ const f=await cfgApi.insertar("ofertas_socias",{...o,activa:true}); setOfertas(p=>[...p,f]); return {ok:true,msg:`✓ Oferta creada: ${o.producto} a ${fmt(o.precio)} para socias.`}; }catch(e){ return {ok:false,msg:"No se pudo guardar. ¿Corriste el código de Supabase?"}; } },
+      async activarOferta(o,activa){ try{ await cfgApi.actualizar("ofertas_socias",`id=eq.${o.id}`,{activa}); setOfertas(p=>p.map(x=>x.id===o.id?{...x,activa}:x)); return {ok:true,msg:activa?"✓ Oferta activada.":"Oferta desactivada."}; }catch(e){ return {ok:false,msg:"No se pudo guardar."}; } }}} recargar={async()=>{await recargarVentas();await recargarStock();}} allSales={allSales} allFlags={allFlags} allStock={allStock} setAllStock={setAllStock} vendedoras={vendedoras} setVendedoras={setVendedoras} duenaPin={duenaPin} setDuenaPin={setDuenaPin} tiendas={tiendas} setTiendas={setTiendas} ferias={ferias} setFerias={setFerias} quizStats={quizStats} onBack={()=>setMode("selector")}/>);
 
   if(screen==="login")return W(
     <div style={{minHeight:"100vh",background:C.dark,fontFamily:"system-ui,-apple-system,sans-serif"}}>
@@ -1777,8 +2039,8 @@ export default function HindicaApp(){
   if(screen==="principios")return W(<PrincipiosDiarios seller={seller} onComplete={()=>setScreen("quiz")}/>);
   if(screen==="quiz")return W(<QuizDiario seller={seller} historial={quizStats.filter(s=>s.vendedora===seller)} onComplete={resultados=>{setQuizStats(p=>[...p,...resultados.map(r=>({...r,vendedora:seller,fecha:new Date()}))]);setScreen("opening");}}/>);
   if(screen==="opening")return W(<Apertura tienda={tienda} seller={seller} onComplete={async data=>{setOpening(data);setScreen("shift");if(data.insumos)addFlag({titulo:"Insumos faltantes en apertura",detalle:data.insumos,tienda,nivel:"amarillo"});try{const r=await db.insert("turnos",{vendedora:seller,tienda,fondo_caja:data.fondo,foto_apertura:data.fotoTienda,foto_tablero_apertura:data.fotoTablero,insumos_faltantes:data.insumos,notas_apertura:data.notas,hora_apertura:data.hora});if(r&&r[0])setTurnoId(r[0].id);}catch(e){}}}/>);
-  if(screen==="shift")return W(<TurnoActivo tienda={tienda} seller={seller} sales={sales} cashMovements={cashMovements} fondo={opening?.fondo} checksDue={checksDue} onNewSale={()=>setScreen("newSale")} onChequeo={()=>setScreen("chequeo")} onSalidaCaja={()=>setScreen("salidaCaja")} onInsumos={()=>setScreen("insumos")} onVerStock={()=>setScreen("verStock")} onCierre={()=>setScreen("cierre")}/>);
-  if(screen==="newSale")return W(<NuevaVenta seller={seller} tienda={tienda} onSave={async s=>{setSales(p=>[...p,s]);setAllSales(p=>[...p,s]);setAllStock(prev=>{const u=[...prev];const idx=u.findIndex(i=>i.ubicacion===tienda&&i.producto===s.producto&&i.colorBase===s.colorBase&&i.cantidad>0);if(idx>=0)u[idx]={...u[idx],cantidad:u[idx].cantidad-1};return u;});setScreen("shift");try{await db.insert("ventas",{turno_id:turnoId,vendedora:s.vendedora,tienda:s.tienda,categoria:s.categoria,producto:s.producto,color_base:s.colorBase,estampado:s.estampado,color_acento:s.colorAcento,foto:s.foto,precio:s.precio,medio_pago:s.pago,hora:s.hora});}catch(e){}}} onBack={()=>setScreen("shift")}/>);
+  if(screen==="shift")return W(<>{avisoPendiente&&<div onClick={async()=>{await ventasApi.reintentar();if(!ventasApi.pendientes().length)setAvisoPendiente(false);}} style={{background:"#FFF1DC",color:"#8A5A12",padding:"10px 16px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"system-ui,-apple-system,sans-serif"}}>⚠️ Una venta está guardada en este teléfono y se subirá cuando haya señal. No la registres de nuevo. (Toca para reintentar)</div>}<TurnoActivo tienda={tienda} seller={seller} sales={sales} cashMovements={cashMovements} fondo={opening?.fondo} checksDue={checksDue} onNewSale={()=>setScreen("newSale")} onChequeo={()=>setScreen("chequeo")} onSalidaCaja={()=>setScreen("salidaCaja")} onInsumos={()=>setScreen("insumos")} onVerStock={()=>setScreen("verStock")} onCierre={()=>setScreen("cierre")}/></>);
+  if(screen==="newSale")return W(<NuevaVenta ofertas={ofertas} seller={seller} tienda={tienda} onSave={async s=>{setSales(p=>[...p,s]);setAllSales(p=>[...p,s]);setAllStock(prev=>{const u=[...prev];const idx=u.findIndex(i=>i.ubicacion===tienda&&i.producto===s.producto&&i.colorBase===s.colorBase&&i.cantidad>0);if(idx>=0)u[idx]={...u[idx],cantidad:u[idx].cantidad-1};return u;});setScreen("shift");const ok=await ventasApi.guardar({cliente_id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,turno_id:turnoId,vendedora:s.vendedora,tienda:s.tienda,categoria:s.categoria,producto:s.producto,color_base:s.colorBase,estampado:s.estampado,color_acento:s.colorAcento,foto:s.foto,precio:s.precio,medio_pago:s.pago,hora:s.hora});if(!ok)setAvisoPendiente(true);}} onBack={()=>setScreen("shift")}/>);
   if(screen==="chequeo")return W(<ChequeoHorario seller={seller} tienda={tienda} onSave={c=>{setHourlyChecks(p=>[...p,c]);setLastCheck(new Date());if(c.notas)addFlag({titulo:"Reporte en chequeo horario",detalle:c.notas,tienda,nivel:"amarillo"});setScreen("shift");}} onBack={()=>setScreen("shift")}/>);
   if(screen==="salidaCaja")return W(<SalidaCaja seller={seller} onSave={m=>{setCashMovements(p=>[...p,m]);addFlag({titulo:"Salida de caja",detalle:`${seller} retiró ${fmt(m.monto)}: ${m.motivo}`,tienda,nivel:"amarillo"});setScreen("shift");}} onBack={()=>setScreen("shift")}/>);
   if(screen==="insumos")return W(<ReporteInsumos seller={seller} tienda={tienda} onSave={r=>{addFlag({titulo:"Insumos faltantes",detalle:r.items,tienda,nivel:"rojo"});setScreen("shift");}} onBack={()=>setScreen("shift")}/>);
