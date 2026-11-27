@@ -80,8 +80,14 @@ const ventasApi = {
       const d=await r.json(); return Array.isArray(d)?d.map(x=>{const {foto,...resto}=x;return ventaLocal(resto);}):null;
     }catch(e){ return null; }
   },
-  async fotosTienda(tienda,desde){
-    try{ const r=await fetch(`${SUPABASE_URL}/rest/v1/ventas?select=id,foto,categoria,producto,color_base,color_acento,tienda,vendedora,precio,hora,created_at,ticket&tienda=eq.${encodeURIComponent(tienda)}&created_at=gte.${encodeURIComponent(desde.toISOString())}&order=id.desc`,{headers:stockHeaders}); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d.map(ventaLocal):null; }catch(e){ return null; }
+  // Reposición: primero la lista liviana (sin fotos), después las fotos en grupos pequeños
+  async ventasTienda(tienda,desde){
+    const r=await ventasApi.cargar(`&tienda=eq.${encodeURIComponent(tienda)}`);
+    if(r===null)return null;
+    return r.filter(v=>{const f=fechaVenta(v);return f&&f>=desde;}).sort((a,b)=>(b.id||0)-(a.id||0));
+  },
+  async fotosPorId(ids){
+    try{ const r=await fetch(`${SUPABASE_URL}/rest/v1/ventas?select=id,foto&id=in.(${ids.join(",")})`,{headers:stockHeaders}); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d:null; }catch(e){ return null; }
   },
   async fotosRecientes(){
     try{ const r=await fetch(`${SUPABASE_URL}/rest/v1/ventas?select=id,foto,producto,color_base,tienda,vendedora,precio,hora,created_at&foto=not.is.null&order=id.desc&limit=40`,{headers:stockHeaders}); if(!r.ok)return []; const d=await r.json(); return Array.isArray(d)?d.map(ventaLocal):[]; }catch(e){ return []; }
@@ -1088,7 +1094,29 @@ function Reposicion({tiendas,allStock}){
   const [grande,setGrande]=useState(null);
   const desde=(()=>{ if(desdeTxt)return new Date(desdeTxt+"T00:00:00"); const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-(dias-1)); return d; })();
   const desdeKey=desde.getTime();
-  useEffect(()=>{ if(!tienda)return; setVentas(null); setError(""); ventasApi.fotosTienda(tienda,desde).then(r=>{ if(r===null){setError("No se pudo cargar. Revisa la conexión.");setVentas([]);} else setVentas(r); }); },[tienda,desdeKey]); // eslint-disable-line
+  const [fotos,setFotos]=useState({});
+  const [faltanFotos,setFaltanFotos]=useState(0);
+  useEffect(()=>{
+    if(!tienda)return; let vivo=true;
+    setVentas(null); setError(""); setFotos({});
+    (async()=>{
+      const r=await ventasApi.ventasTienda(tienda,desde);
+      if(!vivo)return;
+      if(r===null){ setError("No se pudo cargar la lista. Revisa la conexión y vuelve a tocar la tienda."); setVentas([]); return; }
+      setVentas(r);
+      const ids=r.map(v=>v.id).filter(Boolean); let fallidas=0;
+      for(let i=0;i<ids.length;i+=6){
+        const lote=ids.slice(i,i+6);
+        let f=await ventasApi.fotosPorId(lote);
+        if(f===null) f=await ventasApi.fotosPorId(lote);
+        if(!vivo)return;
+        if(f===null){ fallidas+=lote.length; continue; }
+        setFotos(p=>{const n={...p}; lote.forEach(id=>{n[id]=null;}); f.forEach(x=>{n[x.id]=x.foto||null;}); return n;});
+      }
+      setFaltanFotos(fallidas);
+    })();
+    return ()=>{vivo=false;};
+  },[tienda,desdeKey]); // eslint-disable-line
   const grupos=(()=>{ const m=new Map(); (ventas||[]).forEach(v=>{ const k=`${v.categoria||""}|${v.producto}|${v.colorBase||""}`; if(!m.has(k))m.set(k,{categoria:v.categoria,producto:v.producto,colorBase:v.colorBase,ventas:[]}); m.get(k).ventas.push(v); }); return [...m.values()].sort((a,b)=>b.ventas.length-a.ventas.length||(a.producto||"").localeCompare(b.producto||"")); })();
   const enBodega=g=>allStock.filter(i=>BODEGAS.includes(i.ubicacion)&&i.producto===g.producto&&i.colorBase===g.colorBase).reduce((a,i)=>a+(i.cantidad||0),0);
   const enTienda=g=>allStock.filter(i=>i.ubicacion===tienda&&i.producto===g.producto&&i.colorBase===g.colorBase).reduce((a,i)=>a+(i.cantidad||0),0);
@@ -1111,6 +1139,7 @@ function Reposicion({tiendas,allStock}){
     {ventas===null?<div style={{...sCard(),textAlign:"center",padding:30,color:C.muted,fontSize:13}}>Cargando…</div>
     :<>
       {error&&<div style={{...sCard(),color:C.red,fontSize:14}}>{error}</div>}
+      {faltanFotos>0&&<div style={{...sCard(),color:C.gold,fontSize:13}}>No se pudieron cargar {faltanFotos} fotos (señal débil). Vuelve a tocar la tienda para reintentar.</div>}
       <div style={sCard({background:C.dark})}>
         <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",textTransform:"uppercase",fontWeight:700}}>Para llevar a {tienda}</div>
         <div style={{fontSize:26,fontWeight:900,color:C.white}}>{total} {total===1?"artículo":"artículos"}</div>
@@ -1126,9 +1155,9 @@ function Reposicion({tiendas,allStock}){
           </div>
           <div style={{fontSize:12,marginBottom:10,color:C.muted}}>Quedan en {tienda}: <b style={{color:C.text}}>{t}</b> · En bodega: <b style={{color:b>0?C.green:C.red}}>{b}</b>{b===0?" (hay que comprar)":""}</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-            {g.ventas.map((v,j)=>v.foto
+            {g.ventas.map((v0,j)=>{ const cargada=v0.id in fotos; const v={...v0,foto:fotos[v0.id]||v0.foto}; return v.foto
               ?<div key={j} onClick={()=>setGrande(v)} style={{cursor:"pointer"}}><img src={v.foto} alt="" style={{width:"100%",aspectRatio:"1",objectFit:"cover",borderRadius:10,display:"block"}}/><div style={{fontSize:10,color:C.muted,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v.colorAcento&&v.colorAcento!=="-"?v.colorAcento+" · ":""}{fechaVenta(v)?fechaVenta(v).toLocaleDateString("es-CL",{day:"numeric",month:"short"}):""}</div></div>
-              :<div key={j} style={{aspectRatio:"1",borderRadius:10,background:"#F0EDE8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.muted,textAlign:"center",padding:4}}>Sin foto</div>)}
+              :<div key={j} style={{aspectRatio:"1",borderRadius:10,background:"#F0EDE8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.muted,textAlign:"center",padding:4}}>{cargada||faltanFotos?"Sin foto":"Cargando…"}</div>;})}
           </div>
         </div>
       );})}
