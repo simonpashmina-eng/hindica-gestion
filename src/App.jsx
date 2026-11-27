@@ -68,7 +68,8 @@ const fechaVenta = s => {
   return h && !isNaN(h) ? h : null;
 };
 // Ventas: se cargan SIN fotos (livianas). Las fotos solo se piden en "Reposición".
-const COLS_VENTA="id,turno_id,vendedora,tienda,categoria,producto,color_base,estampado,color_acento,precio,medio_pago,hora,created_at";
+const COLS_VENTA="id,turno_id,vendedora,tienda,categoria,producto,color_base,estampado,color_acento,precio,medio_pago,hora,created_at,ticket,codigo_embajadora,descuento";
+const COLS_OPCIONALES=["cliente_id","ticket","codigo_embajadora","descuento","numero_socia"];
 const ventaLocal = r => ({...r, colorBase:r.colorBase||r.color_base, colorAcento:r.colorAcento||r.color_acento, pago:r.pago||r.medio_pago});
 const ventasApi = {
   async cargar(filtro=""){
@@ -79,8 +80,14 @@ const ventasApi = {
       const d=await r.json(); return Array.isArray(d)?d.map(x=>{const {foto,...resto}=x;return ventaLocal(resto);}):null;
     }catch(e){ return null; }
   },
+  async fotosTienda(tienda,desde){
+    try{ const r=await fetch(`${SUPABASE_URL}/rest/v1/ventas?select=id,foto,categoria,producto,color_base,color_acento,tienda,vendedora,precio,hora,created_at,ticket&tienda=eq.${encodeURIComponent(tienda)}&created_at=gte.${encodeURIComponent(desde.toISOString())}&order=id.desc`,{headers:stockHeaders}); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d.map(ventaLocal):null; }catch(e){ return null; }
+  },
   async fotosRecientes(){
     try{ const r=await fetch(`${SUPABASE_URL}/rest/v1/ventas?select=id,foto,producto,color_base,tienda,vendedora,precio,hora,created_at&foto=not.is.null&order=id.desc&limit=40`,{headers:stockHeaders}); if(!r.ok)return []; const d=await r.json(); return Array.isArray(d)?d.map(ventaLocal):[]; }catch(e){ return []; }
+  },
+  async porTicket(t){
+    try{ const r=await fetch(`${SUPABASE_URL}/rest/v1/ventas?select=*&ticket=eq.${encodeURIComponent(t)}&order=id.asc`,{headers:stockHeaders}); if(!r.ok)return null; const d=await r.json(); return Array.isArray(d)?d.map(ventaLocal):null; }catch(e){ return null; }
   },
   // Guarda una venta. Si falla (sin señal, app cerrada), queda pendiente y se reintenta sola.
   pendientes(){ try{ return JSON.parse(localStorage.getItem("hindica_ventas_pendientes")||"[]"); }catch(e){ return []; } },
@@ -91,7 +98,7 @@ const ventasApi = {
       const r=await fetch(`${SUPABASE_URL}/rest/v1/ventas`,{method:"POST",headers:{...stockHeaders,Prefer:"return=minimal"},body:JSON.stringify(fila)});
       if(r.ok||r.status===409) return true;
       const t=await r.text();
-      if(/cliente_id/.test(t)){ const {cliente_id,...sin}=fila; const r2=await fetch(`${SUPABASE_URL}/rest/v1/ventas`,{method:"POST",headers:{...stockHeaders,Prefer:"return=minimal"},body:JSON.stringify(sin)}); return r2.ok; }
+      if(COLS_OPCIONALES.some(c=>t.includes(c))){ const sin={...fila}; COLS_OPCIONALES.forEach(c=>{ if(t.includes(c)||c!=="cliente_id")delete sin[c]; }); const r2=await fetch(`${SUPABASE_URL}/rest/v1/ventas`,{method:"POST",headers:{...stockHeaders,Prefer:"return=minimal"},body:JSON.stringify(sin)}); return r2.ok||r2.status===409; }
       return false;
     }catch(e){ return false; }
   },
@@ -211,6 +218,15 @@ const PREGUNTAS = [
   {p:0,q:"¿Cuántos mensajes al año recibe una socia como máximo?",ops:["Los que sean necesarios","Uno por mes","Máximo 5, incluido el de cumpleaños","Máximo 6"],c:2},
   {p:0,q:"Una socia olvidó su número. ¿Qué haces?",ops:["Le dices que vuelva otro día","La inscribes de nuevo","La buscas por su RUT en la app","Le aplicas el descuento sin buscarla"],c:2},
   {p:0,q:"Una socia viene por su regalo de cumpleaños sin comprar nada. ¿Qué haces?",ops:["Le pides que compre algo","Se lo entregas y lo anotas en la app","Solo si es el día exacto","Solo si compró este año"],c:1},
+  {p:0,q:"¿Cuáles son los 5 momentos de la visita perfecta?",ops:["Saludo, ocasión, look, cierre, despedida","Saludo, precio, descuento, cobro, bolsa","Mirar, probar, pagar, envolver, salir","Club, nombre, talla, color, pago"],c:0},
+  {p:0,q:"Una clienta entra apurada. ¿Qué haces?",ops:["Le explicas el Club completo","Saludo corto, le preguntas qué busca y le muestras 2 opciones","La dejas sola para no molestarla","Le muestras toda la colección"],c:1},
+  {p:0,q:"Una clienta busca un regalo y no sabe la talla. ¿Qué le sugieres?",ops:["Que vuelva con la talla","Algo que no depende de talla: pareo, aros, collar, scrunchie","La talla más grande, por si acaso","Un vestido cualquiera"],c:1},
+  {p:0,q:"Vendiste algo para regalo. ¿Qué no puede faltar?",ops:["Un descuento extra","Escribir el número de ticket en la tarjeta de cambio","Guardar el precio en la bolsa","Pedirle el RUT"],c:1},
+  {p:0,q:"Una clienta dice: Solo estoy mirando. ¿Qué respondes?",ops:["¿Segura? Tenemos ofertas","¡Perfecto! Mira tranquila. Soy (tu nombre), cualquier cosa me dices","Bueno, y te sigues mirando","Le muestras igual todo lo nuevo"],c:1},
+  {p:0,q:"¿En qué momento de la visita descubres para qué es la prenda?",ops:["En el saludo","En la ocasión","En el cierre","En la despedida"],c:1},
+  {p:0,q:"Una clienta eligió un vestido. ¿Qué es armar el look?",ops:["Mostrarle vestidos más caros","Ponerle al lado unos aros o un collar que vayan con el vestido","Ofrecerle un descuento","Preguntarle si quiere algo más"],c:1},
+  {p:0,q:"Una clienta lleva un vestido y unos aros. ¿Cómo se registra?",ops:["Dos ventas separadas, cada una con su ticket","Una compra: primer artículo y luego + Agregar otro artículo a esta compra","Solo el vestido","Como una sola venta con el precio total"],c:1},
+  {p:0,q:"¿A quién invitas a ser Embajadora Hindica?",ops:["A cualquier clienta con Instagram","A quien pide cosas gratis","A una clienta que compró a precio completo, ama la marca y tiene Instagram activo","Solo a influencers famosas"],c:2},
   {p:0,q:"¿Cuánto cuesta inscribirse al Club Hindica?",ops:["$5.000 al año","Es gratis, para siempre","Depende de cuánto compre","Solo la primera compra"],c:1},
 ];
 
@@ -475,7 +491,7 @@ function Selector({onVendedora,onDuena,onEntrenamiento}){
 const MANUAL_VENTAS = [
   { titulo:"Bienvenida a Hindica", icono:"🌿", contenido:"Bienvenida al equipo Hindica." + String.fromCharCode(10) + String.fromCharCode(10) + "Hindica nació para traer a Chile ropa hermosa, colorida y confeccionada artesanalmente en India. Vendemos prendas únicas — en muchos casos existen solo tres iguales en todo Chile." + String.fromCharCode(10) + String.fromCharCode(10) + "Este manual te prepara para el día a día. Tarda aproximadamente 15 minutos. Cuando termines, sabrás exactamente qué hacer en cada momento de tu turno." },
   { titulo:"Tu día completo — De principio a fin", icono:"📅", contenido:"Así es un día típico en Hindica:" + String.fromCharCode(10) + String.fromCharCode(10) + "1. Llegas a la tienda a la hora acordada" + String.fromCharCode(10) + "2. Abres la app y seleccionas tu tienda y nombre" + String.fromCharCode(10) + "3. Lees los 10 principios Hindica (obligatorio)" + String.fromCharCode(10) + "4. Respondes el quiz de 3 preguntas" + String.fromCharCode(10) + "5. Completas la apertura: checklist + fotos + fondo de caja" + String.fromCharCode(10) + "6. Abres la tienda y comienzas a atender" + String.fromCharCode(10) + "7. Cada hora: revisas y ordenas la tienda + foto" + String.fromCharCode(10) + "8. Cada venta: la registras en la app inmediatamente" + String.fromCharCode(10) + "9. Al cierre: conteo de stock + arqueo de caja + foto" + String.fromCharCode(10) + String.fromCharCode(10) + "La app es tu compañera durante todo el día. No es opcional — es parte del trabajo." },
-  { titulo:"Cómo abrir la app", icono:"📱", contenido:"1. Abre Safari o Chrome en tu teléfono" + String.fromCharCode(10) + "2. Ve a: gestion.hindica.cl" + String.fromCharCode(10) + "3. Toca Soy vendedora" + String.fromCharCode(10) + "4. Selecciona tu tienda" + String.fromCharCode(10) + "5. Selecciona tu nombre" + String.fromCharCode(10) + "6. Ingresa tu PIN de 4 dígitos" + String.fromCharCode(10) + String.fromCharCode(10) + "Después del PIN verás los 10 Principios Hindica. Debes leer y confirmar cada uno — no se puede saltar." + String.fromCharCode(10) + String.fromCharCode(10) + "Luego hay 3 preguntas de quiz. El sistema recuerda tus errores y te pregunta sobre tus puntos débiles." },
+  { titulo:"Cómo abrir la app", icono:"📱", contenido:"1. Abre Safari o Chrome en tu teléfono" + String.fromCharCode(10) + "2. Ve a: hindica-gestion.vercel.app" + String.fromCharCode(10) + "3. Toca Soy vendedora" + String.fromCharCode(10) + "4. Selecciona tu tienda" + String.fromCharCode(10) + "5. Selecciona tu nombre" + String.fromCharCode(10) + "6. Ingresa tu PIN de 4 dígitos" + String.fromCharCode(10) + String.fromCharCode(10) + "Después del PIN verás los 10 Principios Hindica. Debes leer y confirmar cada uno — no se puede saltar." + String.fromCharCode(10) + String.fromCharCode(10) + "Luego hay 3 preguntas de quiz. El sistema recuerda tus errores y te pregunta sobre tus puntos débiles." },
   { titulo:"La apertura — Cómo abrir bien la tienda", icono:"🔓", contenido:"Pasos obligatorios en orden:" + String.fromCharCode(10) + String.fromCharCode(10) + "✓ Limpiar el piso de la tienda" + String.fromCharCode(10) + "✓ Limpiar los espejos" + String.fromCharCode(10) + "✓ Tablero de accesorios: 1 de cada modelo, colores variados" + String.fromCharCode(10) + "✓ Ropa bien exhibida y ordenada" + String.fromCharCode(10) + "✓ Revisar insumos: bolsas, papel, perchas" + String.fromCharCode(10) + "✓ Contar el stock" + String.fromCharCode(10) + String.fromCharCode(10) + "Fotos obligatorias:" + String.fromCharCode(10) + "📸 Foto de la tienda abierta, limpia y ordenada" + String.fromCharCode(10) + "📸 Foto del tablero de accesorios" + String.fromCharCode(10) + String.fromCharCode(10) + "Fondo de caja: anota cuánto efectivo hay al abrir." },
   { titulo:"El tablero de accesorios", icono:"💍", contenido:"Reglas obligatorias:" + String.fromCharCode(10) + "• Solo 1 de cada modelo en exhibición" + String.fromCharCode(10) + "• Colores lo más variados posible — nunca dos iguales juntos" + String.fromCharCode(10) + "• Si se vende algo, reemplázalo inmediatamente" + String.fromCharCode(10) + "• Siempre debe verse lleno y ordenado" + String.fromCharCode(10) + String.fromCharCode(10) + "Esto se verifica en la apertura y en cada chequeo horario con foto." + String.fromCharCode(10) + String.fromCharCode(10) + "Un tablero bien organizado vende solo. Uno desordenado hace que las clientas pasen de largo." },
   { titulo:"Cómo registrar una venta", icono:"🛍️", contenido:"Registra CADA venta en la app inmediatamente después de cobrar." + String.fromCharCode(10) + String.fromCharCode(10) + "Pasos:" + String.fromCharCode(10) + "1. Toca Registrar venta" + String.fromCharCode(10) + "2. Selecciona categoría y producto" + String.fromCharCode(10) + "3. Elige el color base" + String.fromCharCode(10) + "4. Para ropa: elige el color acento" + String.fromCharCode(10) + "5. Toma una foto del artículo vendido (obligatorio)" + String.fromCharCode(10) + "6. Ingresa el precio" + String.fromCharCode(10) + "7. Selecciona el medio de pago" + String.fromCharCode(10) + String.fromCharCode(10) + "Nunca registres sin foto ni sin el medio de pago correcto." },
@@ -488,6 +504,10 @@ const MANUAL_VENTAS = [
   { titulo:"Paso 3 — COMPRENDER", icono:"🧠", contenido:"Comprende qué está buscando realmente." + String.fromCharCode(10) + String.fromCharCode(10) + "Busco algo cómodo para la playa puede significar:" + String.fromCharCode(10) + "→ Quiere verse bien sin esfuerzo" + String.fromCharCode(10) + "→ Va a estar mucho tiempo al sol" + String.fromCharCode(10) + "→ No quiere gastar mucho" + String.fromCharCode(10) + String.fromCharCode(10) + "Haz una pregunta más si necesitas claridad:" + String.fromCharCode(10) + "¿Es para salir a cenar o para estar en la playa?" + String.fromCharCode(10) + "¿Tienes algún color favorito o algo que quieras evitar?" },
   { titulo:"Paso 4 — ASESORAR", icono:"💡", contenido:"Ahora sí hablas. Pero solo de las 2 o 3 opciones que le sirven." + String.fromCharCode(10) + String.fromCharCode(10) + "Sé honesta. Si algo no le queda bien, dilo con amabilidad:" + String.fromCharCode(10) + "Este modelo es muy lindo pero creo que este otro te favorece más." + String.fromCharCode(10) + String.fromCharCode(10) + "Nunca digas te queda perfecto si no es verdad. Ella lo sabe." + String.fromCharCode(10) + String.fromCharCode(10) + "La honestidad construye confianza. Una clienta que confía en tu opinión compra más y vuelve más." },
   { titulo:"Paso 5 — INSPIRAR", icono:"✨", contenido:"El cierre no es presionar. Es inspirar." + String.fromCharCode(10) + String.fromCharCode(10) + "Cuando ella se ve bien, refléjalo:" + String.fromCharCode(10) + "Te queda increíble — ese color con tu tono de piel es perfecto." + String.fromCharCode(10) + String.fromCharCode(10) + "Sugiere un accesorio:" + String.fromCharCode(10) + "¿Viste que tenemos unos aretes que irían ideales con eso?" + String.fromCharCode(10) + String.fromCharCode(10) + "No preguntes ¿lo llevas? — di ¿te lo envuelvo?" + String.fromCharCode(10) + String.fromCharCode(10) + "Si no quiere comprar: que se vaya bien y con ganas de volver." },
+  { titulo:"La visita perfecta — Los 5 momentos", icono:"💫", contenido:"Cada visita tiene 5 momentos. Si cuidas los 5, la clienta sale feliz, compre o no." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "1. SALUDO — Sonrisa y contacto visual: ¡Hola, bienvenida a Hindica! ¿Eres socia del Club? ¿Cómo te llamas? Yo soy (tu nombre). Después, dale espacio." + String.fromCharCode(10) + "2. OCASIÓN — Descubre para qué es: ¿Es para algo en especial o estás viendo qué te gusta? Playa, un matrimonio, un viaje, un regalo… La ocasión te dice qué mostrar." + String.fromCharCode(10) + "3. LOOK — Muestra 2 o 3 opciones para esa ocasión, no 10. Cuando algo le guste, ponle al lado unos aros, un collar o un scrunchie. Que vea el look completo." + String.fromCharCode(10) + "4. CIERRE — Refleja cómo se ve, con detalles reales. No preguntes ¿lo llevas?: di ¿te lo envuelvo? En caja: Club, nombre, y si es regalo, el ticket de cambio." + String.fromCharCode(10) + "5. DESPEDIDA — Por su nombre: ¡Gracias, Camila, que lo disfrutes! Invítala a volver. Si le encanta la marca y compró a precio completo, cuéntale de Embajadoras." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "Aunque no compre nada, los momentos 1 y 5 nunca se saltan." },
+  { titulo:"Situaciones reales", icono:"🎭", contenido:"APURADA: saludo corto y directo: ¿Buscas algo en particular? Te ayudo rápido. Muéstrale 2 opciones, cobra rápido y no la retengas. El nombre igual se pregunta, en 2 segundos." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "REGALO: pregunta para quién es, qué estilo tiene y qué colores usa. Si no sabe la talla, sugiere algo que no depende de talla: pareo, aros, collar, scrunchie. Envuélvelo bonito y escribe el número de ticket en la tarjeta de cambio." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "SOLO ESTOY MIRANDO: ¡Perfecto! Mira tranquila. Soy (tu nombre), cualquier cosa me dices. Aléjate. Vuelve solo si toca una prenda o se la prueba frente al espejo, con un dato: Ese estampado es único, hay solo tres en Chile." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "LO VOY A PENSAR: Claro, tómate tu tiempo. ¿Hay algo que te haga dudar? Escucha la duda real. Ofrece tomarle una foto o apartárselo hasta mañana. Nunca presiones." },
+  { titulo:"Compras con varios artículos y ticket de cambio", icono:"🧾", contenido:"Cuando una clienta lleva más de una cosa, es UNA compra con un solo ticket:" + String.fromCharCode(10) + "" + String.fromCharCode(10) + "1. Registra el primer artículo como siempre." + String.fromCharCode(10) + "2. En la pantalla Venta guardada toca + Agregar otro artículo a esta compra." + String.fromCharCode(10) + "3. Repite hasta terminar y toca Listo." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "Así el descuento del Club se aplica a toda la compra, y la app cuenta las ventas look (ropa + joyería o accesorio)." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "TICKET DE CAMBIO: si es para regalo, escribe el número de ticket (ej: M2511-4321) en la tarjeta de cambio. Cuando vengan a cambiar, toca Cambios (ticket) en tu turno y búscalo: verás qué se compró y cuánto se pagó." },
+  { titulo:"Embajadoras Hindica", icono:"⭐", contenido:"Buscamos clientas a las que de verdad les encanta Hindica, para que muestren la ropa en Instagram." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "A QUIÉN INVITAR: clientas que compraron a precio completo, con Instagram activo (1.000 seguidores o más) y que se nota que aman la marca. No a quien solo quiere cosas gratis." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "CÓMO: al final de una buena conversación, entrégale la tarjeta de invitación y regístrala en la app (⭐ Embajadoras, o el botón dorado al guardar la venta)." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "SEGUIMIENTO: escríbele, pregúntale cómo le quedó la ropa y anota en la app que hiciste seguimiento. Cuando publique su video, agrégalo con el link, los likes y las vistas." + String.fromCharCode(10) + "" + String.fromCharCode(10) + "TU BONO: ganas un bono cuando una embajadora que invitaste publica su primer video. Lo ves en tu pantalla de Embajadoras." },
   { titulo:"Upselling", icono:"🎁", contenido:"Upselling es ayudar a la clienta a llevarse una experiencia completa." + String.fromCharCode(10) + String.fromCharCode(10) + "Reglas de oro:" + String.fromCharCode(10) + "• Solo sugiere si realmente complementa lo que compró" + String.fromCharCode(10) + "• Muéstralo físicamente — pon el collar con el vestido" + String.fromCharCode(10) + "• Una sola sugerencia, no tres" + String.fromCharCode(10) + "• Si dice que no, acéptalo sin insistir" + String.fromCharCode(10) + String.fromCharCode(10) + "Ejemplo: vendiste falda gitana azul → sugiere scrunchie en tono tierra" },
   { titulo:"Comportamiento en la tienda", icono:"⭐", contenido:"Presentación:" + String.fromCharCode(10) + "• Llega siempre a la hora acordada" + String.fromCharCode(10) + "• Vístete acorde al estilo Hindica" + String.fromCharCode(10) + "• Sin teléfono en la mano mientras hay clientas" + String.fromCharCode(10) + String.fromCharCode(10) + "Actitud:" + String.fromCharCode(10) + "• Saluda a CADA persona que entra" + String.fromCharCode(10) + "• Si tienes un mal día, déjalo afuera" + String.fromCharCode(10) + "• Trata a la dueña con honestidad siempre" + String.fromCharCode(10) + String.fromCharCode(10) + "Con compañeras:" + String.fromCharCode(10) + "• No dos encima de la misma clienta" + String.fromCharCode(10) + "• Diferencias: háblalo entre ustedes, nunca delante de clientas" },
   { titulo:"Qué hacer y qué NO hacer", icono:"📋", contenido:"✅ SÍ hacer:" + String.fromCharCode(10) + "• Registrar cada venta inmediatamente" + String.fromCharCode(10) + "• Saludar a todas las clientas" + String.fromCharCode(10) + "• Ser honesta con la caja siempre" + String.fromCharCode(10) + "• Avisar si falta algo antes de que sea problema" + String.fromCharCode(10) + "• Dejar la tienda ordenada siempre" + String.fromCharCode(10) + String.fromCharCode(10) + "❌ NO hacer:" + String.fromCharCode(10) + "• Cobrar sin registrar en la app" + String.fromCharCode(10) + "• Guardar efectivo fuera de la caja" + String.fromCharCode(10) + "• Decir te queda perfecto si no es verdad" + String.fromCharCode(10) + "• Ignorar los avisos de la app" + String.fromCharCode(10) + "• Salir sin completar el cierre" },
@@ -1058,7 +1078,65 @@ function StockTienda({tienda,seller,allStock,setAllStock,addFlag,onBack}){
   );
 }
 
-function PanelDuena({cfg,recargar,allSales,allFlags,allStock,setAllStock,vendedoras,setVendedoras,duenaPin,setDuenaPin,tiendas,setTiendas,ferias,setFerias,quizStats,onBack}){
+// ─── REPOSICIÓN: qué llevar a cada tienda, con las fotos de los estampados vendidos ───
+function Reposicion({tiendas,allStock}){
+  const [tienda,setTienda]=useState(tiendas[0]||"");
+  const [dias,setDias]=useState(7);
+  const [desdeTxt,setDesdeTxt]=useState("");
+  const [ventas,setVentas]=useState(null);
+  const [error,setError]=useState("");
+  const [grande,setGrande]=useState(null);
+  const desde=(()=>{ if(desdeTxt)return new Date(desdeTxt+"T00:00:00"); const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-(dias-1)); return d; })();
+  const desdeKey=desde.getTime();
+  useEffect(()=>{ if(!tienda)return; setVentas(null); setError(""); ventasApi.fotosTienda(tienda,desde).then(r=>{ if(r===null){setError("No se pudo cargar. Revisa la conexión.");setVentas([]);} else setVentas(r); }); },[tienda,desdeKey]); // eslint-disable-line
+  const grupos=(()=>{ const m=new Map(); (ventas||[]).forEach(v=>{ const k=`${v.categoria||""}|${v.producto}|${v.colorBase||""}`; if(!m.has(k))m.set(k,{categoria:v.categoria,producto:v.producto,colorBase:v.colorBase,ventas:[]}); m.get(k).ventas.push(v); }); return [...m.values()].sort((a,b)=>b.ventas.length-a.ventas.length||(a.producto||"").localeCompare(b.producto||"")); })();
+  const enBodega=g=>allStock.filter(i=>BODEGAS.includes(i.ubicacion)&&i.producto===g.producto&&i.colorBase===g.colorBase).reduce((a,i)=>a+(i.cantidad||0),0);
+  const enTienda=g=>allStock.filter(i=>i.ubicacion===tienda&&i.producto===g.producto&&i.colorBase===g.colorBase).reduce((a,i)=>a+(i.cantidad||0),0);
+  const total=(ventas||[]).length;
+  return(<>
+    {grande&&<div onClick={()=>setGrande(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:50,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:16}}>
+      <img src={grande.foto} alt="" style={{maxWidth:"100%",maxHeight:"80vh",borderRadius:12}}/>
+      <div style={{color:C.white,marginTop:12,fontSize:14,textAlign:"center"}}>{grande.producto} · {grande.colorBase}{grande.colorAcento&&grande.colorAcento!=="-"?` / ${grande.colorAcento}`:""}<br/><span style={{opacity:0.7}}>{fechaVenta(grande)?fmtDate(fechaVenta(grande)):""} · {grande.vendedora} · {fmt(grande.precio)}</span></div>
+      <div style={{color:"rgba(255,255,255,0.6)",fontSize:12,marginTop:10}}>Toca para cerrar</div>
+    </div>}
+    <div style={sCard()}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>🚚 ¿Qué llevar a la tienda?</div>
+      <div style={{fontSize:13,color:C.muted,marginBottom:12}}>Todo lo que se vendió en la tienda, con la foto de cada estampado, para reponer.</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>{tiendas.map(t=><TagBtn key={t} label={t} active={tienda===t} color={C.dark} bgActive="#EEF4F1" onClick={()=>setTienda(t)}/>)}</div>
+      <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:6}}>Vendido en</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>{[[1,"Hoy"],[3,"Últimos 3 días"],[7,"Última semana"],[14,"2 semanas"],[30,"Último mes"]].map(([d,l])=><TagBtn key={d} label={l} active={!desdeTxt&&dias===d} onClick={()=>{setDesdeTxt("");setDias(d);}}/>)}</div>
+      <div style={{fontSize:12,color:C.muted,marginBottom:4}}>…o desde mi última visita:</div>
+      <input type="date" style={{...sInput,padding:"10px 12px"}} value={desdeTxt} onChange={e=>setDesdeTxt(e.target.value)}/>
+    </div>
+    {ventas===null?<div style={{...sCard(),textAlign:"center",padding:30,color:C.muted,fontSize:13}}>Cargando…</div>
+    :<>
+      {error&&<div style={{...sCard(),color:C.red,fontSize:14}}>{error}</div>}
+      <div style={sCard({background:C.dark})}>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",textTransform:"uppercase",fontWeight:700}}>Para llevar a {tienda}</div>
+        <div style={{fontSize:26,fontWeight:900,color:C.white}}>{total} {total===1?"artículo":"artículos"}</div>
+        <div style={{fontSize:13,color:"rgba(255,255,255,0.7)"}}>Vendidos desde el {desde.toLocaleDateString("es-CL",{day:"numeric",month:"long"})} · {grupos.length} modelos</div>
+        {total>0&&<button onClick={()=>window.print()} style={{...sBtn(C.gold),marginTop:12,padding:"10px 14px",fontSize:14}}>🖨️ Imprimir o guardar PDF</button>}
+      </div>
+      {total===0&&!error&&<div style={{...sCard(),textAlign:"center",color:C.muted,fontSize:14}}>No hay ventas en {tienda} en ese período.</div>}
+      {grupos.map((g,i)=>{ const b=enBodega(g); const t=enTienda(g); return(
+        <div key={i} style={sCard({padding:14})}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:10}}>
+            <div style={{minWidth:0}}><div style={{fontSize:15,fontWeight:800}}>{g.producto}</div><div style={{fontSize:13,color:C.muted}}>{g.colorBase} · {g.categoria}</div></div>
+            <div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:22,fontWeight:900,color:C.orange}}>{g.ventas.length}</div><div style={{fontSize:10,color:C.muted,textTransform:"uppercase",fontWeight:700}}>vendidos</div></div>
+          </div>
+          <div style={{fontSize:12,marginBottom:10,color:C.muted}}>Quedan en {tienda}: <b style={{color:C.text}}>{t}</b> · En bodega: <b style={{color:b>0?C.green:C.red}}>{b}</b>{b===0?" (hay que comprar)":""}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+            {g.ventas.map((v,j)=>v.foto
+              ?<div key={j} onClick={()=>setGrande(v)} style={{cursor:"pointer"}}><img src={v.foto} alt="" style={{width:"100%",aspectRatio:"1",objectFit:"cover",borderRadius:10,display:"block"}}/><div style={{fontSize:10,color:C.muted,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v.colorAcento&&v.colorAcento!=="-"?v.colorAcento+" · ":""}{fechaVenta(v)?fechaVenta(v).toLocaleDateString("es-CL",{day:"numeric",month:"short"}):""}</div></div>
+              :<div key={j} style={{aspectRatio:"1",borderRadius:10,background:"#F0EDE8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.muted,textAlign:"center",padding:4}}>Sin foto</div>)}
+          </div>
+        </div>
+      );})}
+    </>}
+  </>);
+}
+
+function PanelDuena({cfg,recargar,embajadoras=[],setEmbajadoras,params=PARAMS_DEFAULT,guardarParams,allSales,allFlags,allStock,setAllStock,vendedoras,setVendedoras,duenaPin,setDuenaPin,tiendas,setTiendas,ferias,setFerias,quizStats,onBack}){
   const [tab,setTab]=useState("hoy");
   const [subScreen,setSubScreen]=useState("");
   const [newNombre,setNewNombre]=useState("");
@@ -1074,8 +1152,6 @@ function PanelDuena({cfg,recargar,allSales,allFlags,allStock,setAllStock,vendedo
 
 
   const [periodo,setPeriodo]=useState("hoy");
-  const [fotosRepo,setFotosRepo]=useState(null);
-  useEffect(()=>{ if(tab==="reposicion"&&fotosRepo===null){ ventasApi.fotosRecientes().then(setFotosRepo); } },[tab]); // eslint-disable-line
   const [actualizando,setActualizando]=useState(false);
   const inicioPeriodo=(()=>{const d=new Date();d.setHours(0,0,0,0);if(periodo==="semana")d.setDate(d.getDate()-((d.getDay()+6)%7));if(periodo==="mes")d.setDate(1);return d;})();
   const nombrePeriodo={hoy:"hoy",semana:"esta semana",mes:"este mes"}[periodo];
@@ -1126,7 +1202,9 @@ function PanelDuena({cfg,recargar,allSales,allFlags,allStock,setAllStock,vendedo
     setSubScreen("");
   };
 
-  const tabs=[{id:"hoy",label:"Resumen"},{id:"alertas",label:`Alertas${allFlags.length>0?` (${allFlags.length})`:""}`},{id:"ventas",label:"Ventas"},{id:"inventario",label:"Inventario"},{id:"socias",label:"Socias"},{id:"formacion",label:"Formación"},{id:"reposicion",label:"Reposición"},{id:"config",label:"⚙️"}];
+  const tabs=[{id:"hoy",label:"Resumen"},{id:"alertas",label:`Alertas${allFlags.length>0?` (${allFlags.length})`:""}`},{id:"ventas",label:"Ventas"},{id:"inventario",label:"Inventario"},{id:"socias",label:"Socias"},{id:"formacion",label:"Formación"},{id:"embajadoras",label:"Embajadoras"},{id:"sueldos",label:"Sueldos"},{id:"reposicion",label:"Reposición"},{id:"config",label:"⚙️"}];
+  const resP=resumenVentas(ventasP);
+  const porVendedora=[...new Set(ventasP.map(s=>s.vendedora).filter(Boolean))].map(n=>({n,...resumenVentas(ventasP.filter(s=>s.vendedora===n))})).sort((a,b)=>b.total-a.total);
 
   if(subScreen==="addStock")return<AgregarStock onSave={handleAddStock} onBack={()=>setSubScreen("")} tiendas={tiendas}/>;
   if(subScreen==="enviar")return<EnviarATienda allStock={allStock} tiendas={tiendas} onSend={handleEnviar} onBack={()=>setSubScreen("")}/>;
@@ -1154,13 +1232,20 @@ function PanelDuena({cfg,recargar,allSales,allFlags,allStock,setAllStock,vendedo
 
       <div style={{padding:"20px 20px 0"}}>
         {tab==="hoy"&&<>
+          <div style={sCard()}>
+            <div style={{display:"flex",gap:10}}>
+              <div style={{flex:1}}><div style={{fontSize:11,color:C.muted,fontWeight:700,textTransform:"uppercase"}}>Ticket promedio</div><div style={{fontSize:20,fontWeight:900}}>{fmt(resP.promedio)}</div><div style={{fontSize:12,color:C.muted}}>{resP.compras} compras</div></div>
+              <div style={{flex:1}}><div style={{fontSize:11,color:C.muted,fontWeight:700,textTransform:"uppercase"}}>Ventas look</div><div style={{fontSize:20,fontWeight:900}}>✨ {resP.looks}</div><div style={{fontSize:12,color:C.muted}}>ropa + accesorio</div></div>
+            </div>
+          </div>
+          {porVendedora.length>0&&<div style={sCard()}><div style={{fontSize:16,fontWeight:800,marginBottom:10}}>Por vendedora</div>{porVendedora.map(v=>(<div key={v.n} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`,gap:8}}><div><div style={{fontSize:14,fontWeight:700}}>{v.n}</div><div style={{fontSize:12,color:C.muted}}>{v.compras} compras · prom. {fmt(v.promedio)} · ✨{v.looks} looks</div></div><div style={{fontWeight:800}}>{fmt(v.total)}</div></div>))}</div>}
           {byTienda.map(({tienda,ventas,total})=>(<div key={tienda} style={sCard()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontSize:16,fontWeight:800}}>📍 {tienda}</div><Badge text={`${ventas.length} ventas`} color={ventas.length===0?C.muted:C.green}/></div><div style={{fontSize:22,fontWeight:800,color:C.dark}}>{fmt(total)}</div></div>))}
           {byPago.length>0&&<div style={sCard()}><div style={{fontSize:16,fontWeight:800,marginBottom:14}}>Por medio de pago</div>{byPago.map(p=>(<div key={p.id} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}><div>{p.icon} {p.label} <span style={{color:C.muted,fontSize:12}}>({p.count})</span></div><div style={{fontWeight:700}}>{fmt(p.total)}</div></div>))}</div>}
         </>}
 
         {tab==="alertas"&&<>{allFlags.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{fontSize:16,fontWeight:700,color:C.green}}>¡Todo en orden!</div></div>:allFlags.map((flag,i)=>(<div key={i} style={{...sCard(),borderLeft:`4px solid ${flag.nivel==="rojo"?C.red:C.gold}`}}><div style={{fontSize:14,fontWeight:800,color:flag.nivel==="rojo"?C.red:C.gold}}>{flag.nivel==="rojo"?"🔴":"🟡"} {flag.titulo}</div><div style={{fontSize:13,color:C.muted,marginTop:4}}>{flag.detalle}</div><div style={{fontSize:11,color:C.muted,marginTop:6}}>{flag.tienda} · {fmtTime(flag.hora)}</div></div>))}</>}
 
-        {tab==="ventas"&&<>{ventasP.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Aún no hay ventas {nombrePeriodo}.</div></div>:ventasP.map((sale,i)=>(<div key={i} style={sCard({padding:14})}><div style={{display:"flex",gap:12,alignItems:"center"}}>{sale.foto&&<img src={sale.foto} alt="" style={{width:60,height:60,borderRadius:10,objectFit:"cover",flexShrink:0}}/>}<div style={{flex:1}}><div style={{fontSize:14,fontWeight:800}}>{sale.producto}</div><div style={{fontSize:12,color:C.muted}}>{(sale.colorBase||sale.color_base)}{sale.estampado&&sale.estampado!=="-"?` · ${sale.estampado}`:""}</div><div style={{fontSize:11,color:C.muted}}>{sale.tienda} · {sale.vendedora} · {fechaVenta(sale)?fmtTime(fechaVenta(sale)):""}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:15,fontWeight:800}}>{fmt(sale.precio)}</div><div style={{fontSize:11,color:C.muted}}>{MEDIOS_PAGO.find(p=>p.id===(sale.pago||sale.medio_pago))?.label}</div></div></div></div>))}</>}
+        {tab==="ventas"&&<><BuscarTicket/>{ventasP.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Aún no hay ventas {nombrePeriodo}.</div></div>:ventasP.map((sale,i)=>(<div key={i} style={sCard({padding:14})}><div style={{display:"flex",gap:12,alignItems:"center"}}>{sale.foto&&<img src={sale.foto} alt="" style={{width:60,height:60,borderRadius:10,objectFit:"cover",flexShrink:0}}/>}<div style={{flex:1}}><div style={{fontSize:14,fontWeight:800}}>{sale.producto}</div><div style={{fontSize:12,color:C.muted}}>{(sale.colorBase||sale.color_base)}{sale.estampado&&sale.estampado!=="-"?` · ${sale.estampado}`:""}</div><div style={{fontSize:11,color:C.muted}}>{sale.tienda} · {sale.vendedora} · {fechaVenta(sale)?fmtTime(fechaVenta(sale)):""}{sale.ticket?` · ${sale.ticket}`:""}{(sale.codigo_embajadora||sale.codigoEmbajadora)?` · 💎${sale.codigo_embajadora||sale.codigoEmbajadora}`:""}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:15,fontWeight:800}}>{fmt(sale.precio)}</div><div style={{fontSize:11,color:C.muted}}>{MEDIOS_PAGO.find(p=>p.id===(sale.pago||sale.medio_pago))?.label}</div></div></div></div>))}</>}
 
         {tab==="inventario"&&<>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
@@ -1215,23 +1300,18 @@ function PanelDuena({cfg,recargar,allSales,allFlags,allStock,setAllStock,vendedo
                   {pct!==null?<Badge text={`${pct}% correctas`} color={pct>=80?C.green:pct>=60?C.gold:C.red}/>:<Badge text="Sin datos aún" color={C.muted}/>}
                 </div>
                 <div style={{fontSize:13,color:C.muted,marginBottom:8}}>{total} preguntas respondidas · {correctas} correctas</div>
-                {debiles.length>0&&<><div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:4}}>TEMAS A REFORZAR:</div>{debiles.map(p=>(<div key={p} style={{fontSize:13,color:C.red,marginBottom:2}}>• Principio {p}: {PRINCIPIOS.find(pr=>pr.numero===p)?.titulo}</div>))}</>}
+                {debiles.length>0&&<><div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:4}}>TEMAS A REFORZAR:</div>{debiles.map(p=>(<div key={p} style={{fontSize:13,color:C.red,marginBottom:2}}>• {p?`Principio ${p}: ${PRINCIPIOS.find(pr=>pr.numero===p)?.titulo}`:"Situaciones de venta (objeciones, Club, la visita perfecta)"}</div>))}</>}
                 {total>0&&debiles.length===0&&<div style={{fontSize:13,color:C.green}}>✓ Sin temas débiles detectados</div>}
               </div>
             );
           })}
         </>}
 
-        {tab==="reposicion"&&<>
-          <div style={{...sCard({background:"#FEF8F3",border:`1.5px solid ${C.orange}`})}}>
-            <div style={{fontSize:14,fontWeight:800,color:C.orange,marginBottom:6}}>💡 Referencia para reposición</div>
-            <div style={{fontSize:13,color:C.muted,lineHeight:1.6}}>Fotos de lo vendido para buscar estampados similares al comprar.</div>
-          </div>
-          {fotosRepo===null?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Cargando fotos…</div></div>
-            :fotosRepo.length===0?<div style={{...sCard(),textAlign:"center",padding:40}}><div style={{fontSize:13,color:C.muted}}>Las fotos aparecerán aquí.</div></div>
-            :<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{fotosRepo.map((sale,i)=>(<div key={i} style={{background:C.white,borderRadius:14,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}><img src={sale.foto} alt="" style={{width:"100%",height:120,objectFit:"cover",display:"block"}}/><div style={{padding:"10px 12px"}}><div style={{fontSize:12,fontWeight:700}}>{sale.producto}</div><div style={{fontSize:11,color:C.muted}}>{sale.colorBase}{sale.estampado&&sale.estampado!=="-"?` · ${sale.estampado}`:""}</div><div style={{fontSize:11,color:C.orange,fontWeight:700,marginTop:4}}>{fmt(sale.precio)}</div></div></div>))}</div>
-          }
-        </>}
+        {tab==="embajadoras"&&<PanelEmbajadoras embajadoras={embajadoras} setEmbajadoras={setEmbajadoras} allSales={allSales} params={params}/>}
+
+        {tab==="sueldos"&&<PanelSueldos allSales={allSales} embajadoras={embajadoras} params={params} guardarParams={guardarParams} equipo={cfg.equipo||[]}/>}
+
+        {tab==="reposicion"&&<Reposicion tiendas={tiendas} allStock={allStock}/>}
 
         {tab==="config"&&<>
           <ConfigEquipo cfg={cfg} allSales={allSales}/>
@@ -1518,7 +1598,399 @@ function Apertura({tienda,seller,onComplete}){
   );
 }
 
-function TurnoActivo({tienda,seller,sales,cashMovements,fondo,checksDue,onNewSale,onChequeo,onSalidaCaja,onInsumos,onVerStock,onCierre}){
+// ─── COMPRAS, TICKETS DE CAMBIO Y VENTAS "LOOK" ──────────────────────────────
+const ROPA_CATS = ["Faldas","Tops","Pantalones","Vestidos"];
+// Número de ticket: letra de la tienda + día/mes + correlativo (cambia cada 10 segundos). Ej: M2511-4321
+const nuevoTicket = tienda => {
+  const d=new Date(); const s=Math.floor((d.getHours()*3600+d.getMinutes()*60+d.getSeconds())/10);
+  const l=((tienda||"X").normalize("NFD").replace(/[^A-Za-z]/g,"").charAt(0)||"X").toUpperCase();
+  return `${l}${String(d.getDate()).padStart(2,"0")}${String(d.getMonth()+1).padStart(2,"0")}-${String(s).padStart(4,"0")}`;
+};
+const normalizarTicket = t => { const v=String(t||"").toUpperCase().replace(/[^A-Z0-9]/g,""); return v.length===9?`${v.slice(0,5)}-${v.slice(5)}`:String(t||"").trim().toUpperCase(); };
+const agruparCompras = ventas => { const m=new Map(); ventas.forEach((v,i)=>{ const k=v.ticket||`_${v.id||v.cliente_id||i}`; if(!m.has(k))m.set(k,[]); m.get(k).push(v); }); return [...m.values()]; };
+const esLook = items => items.some(v=>ROPA_CATS.includes(v.categoria)) && items.some(v=>v.categoria==="Joyería"||v.categoria==="Accesorios");
+const resumenVentas = ventas => { const compras=agruparCompras(ventas); const total=ventas.reduce((a,v)=>a+(v.precio||0),0); return {total,compras:compras.length,promedio:compras.length?Math.round(total/compras.length):0,looks:compras.filter(esLook).length}; };
+
+// Reglas de sueldo variable (se cambian en Panel dueña → Sueldos)
+const PARAMS_DEFAULT = {comision_pct:3,bono_publicacion:5000,bono_oro:0,comision_platino:10};
+
+// ─── EMBAJADORAS HINDICA ─────────────────────────────────────────────────────
+const NIVELES = ["Embajadora","Oro","Platino"];
+const ESTADOS_EMB = {invitada:"Invitada",seguimiento:"Con seguimiento",publico:"Publicó"};
+const nivelEmb = e => { let n=0; (e.videos||[]).forEach(v=>{ const i=NIVELES.indexOf(v.nivel); if(i>n)n=i; }); return NIVELES[n]; };
+const primeraPublicacion = e => (e.videos||[]).map(v=>v.fecha).filter(Boolean).sort()[0]||null;
+const fechaOro = e => (e.videos||[]).filter(v=>v.nivel==="Oro"||v.nivel==="Platino").map(v=>v.fecha).filter(Boolean).sort()[0]||null;
+const estadoEmb = e => (e.videos||[]).length?"publico":(e.estado||"invitada");
+const totalesEmb = e => (e.videos||[]).reduce((a,v)=>({likes:a.likes+(Number(v.likes)||0),vistas:a.vistas+(Number(v.vistas)||0)}),{likes:0,vistas:0});
+const fmtNum = n => new Intl.NumberFormat("es-CL").format(n||0);
+const waLink = tel => { const d=String(tel||"").replace(/\D/g,""); if(!d)return null; return `https://wa.me/${d.length===9?"56"+d:d.length===8?"569"+d:d}`; };
+const embApi = {
+  async cargar(){ return await cfgApi.leer("embajadoras","&order=id.desc"); },
+  async crear(f){ return await cfgApi.insertar("embajadoras",f); },
+  // Lee la ficha recién guardada, aplica el cambio y la guarda (así no se pisan cambios de otra vendedora)
+  async cambiar(id,fn){ const r=await cfgApi.leer("embajadoras",`&id=eq.${id}`); if(!r||!r[0])throw new Error("no encontrada"); const datos=fn(r[0]); await cfgApi.actualizar("embajadoras",`id=eq.${id}`,datos); return {...r[0],...datos}; },
+};
+const colorNivel = n => n==="Platino"?"#6B7A8F":n==="Oro"?C.gold:C.purple;
+
+function BuscarTicket(){
+  const [t,setT]=useState("");
+  const [res,setRes]=useState(null);
+  const [cargando,setCargando]=useState(false);
+  const buscar=async()=>{
+    const v=normalizarTicket(t); if(!v)return;
+    setCargando(true); setRes(null);
+    const r=await ventasApi.porTicket(v);
+    const pend=ventasApi.pendientes().filter(x=>x.ticket===v).map(ventaLocal);
+    setCargando(false);
+    if(r===null&&!pend.length)return setRes({error:"No se pudo buscar. Revisa la conexión."});
+    const items=[...(r||[]),...pend.filter(p=>!(r||[]).some(x=>x.cliente_id&&x.cliente_id===p.cliente_id))];
+    setRes(items.length?{items,ticket:v}:{error:`No hay ninguna venta con el número ${v}. Revisa que esté bien escrito (ej: M2511-4321).`});
+  };
+  const total=res&&res.items?res.items.reduce((a,x)=>a+(x.precio||0),0):0;
+  const f0=res&&res.items?fechaVenta(res.items[0]):null;
+  return(
+    <div style={sCard({border:`2px solid ${C.gold}`})}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>🎁 Buscar ticket de cambio</div>
+      <div style={{fontSize:13,color:C.muted,marginBottom:10}}>Escribe el número de la tarjeta de cambio para ver qué se compró y cuánto se pagó.</div>
+      <div style={{display:"flex",gap:8}}>
+        <input style={sInput} placeholder="Ej: M2511-4321" value={t} onChange={e=>setT(e.target.value)} onKeyDown={e=>e.key==="Enter"&&buscar()} autoCapitalize="characters"/>
+        <button onClick={buscar} style={{...sBtn(C.gold),padding:"12px 16px"}}>{cargando?"…":"Buscar"}</button>
+      </div>
+      {res&&res.error&&<div style={{fontSize:13,color:C.red,marginTop:10}}>{res.error}</div>}
+      {res&&res.items&&<div style={{marginTop:14}}>
+        <div style={{fontSize:13,color:C.muted,marginBottom:8}}>Ticket <b style={{color:C.text}}>{res.ticket}</b>{f0?` · ${fmtDate(f0)}`:""} · {res.items[0].tienda} · vendió {res.items[0].vendedora}</div>
+        {res.items.map((x,i)=>(<div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+          {x.foto&&<img src={x.foto} alt="" style={{width:48,height:48,borderRadius:8,objectFit:"cover",flexShrink:0}}/>}
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:700}}>{x.producto}</div><div style={{fontSize:12,color:C.muted}}>{x.colorBase}{x.descuento?` · con descuento (${x.descuento})`:""}</div></div>
+          <div style={{fontSize:15,fontWeight:800}}>{fmt(x.precio)}</div>
+        </div>))}
+        <div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800}}><div>Total pagado</div><div>{fmt(total)}</div></div>
+        <div style={{fontSize:12,color:C.muted,marginTop:8}}>Para el cambio, toma en cuenta lo que se pagó, no el precio de la etiqueta.</div>
+      </div>}
+    </div>
+  );
+}
+
+function CompraLista({compra,onOtro,onEmbajadora,onListo}){
+  const total=compra.items.reduce((a,s)=>a+(s.precio||0),0);
+  const look=esLook(compra.items);
+  const soloRopa=!look&&compra.items.some(v=>ROPA_CATS.includes(v.categoria));
+  const precioCompleto=compra.items.every(v=>!v.descuentoClub);
+  return(
+    <div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}>
+      <div style={{background:C.green,padding:"28px 20px 24px",textAlign:"center"}}>
+        <div style={{fontSize:40}}>✓</div>
+        <div style={{fontSize:22,fontWeight:800,color:C.white}}>Venta guardada</div>
+        <div style={{fontSize:14,color:"rgba(255,255,255,0.75)",marginTop:4}}>{compra.items.length} {compra.items.length===1?"artículo":"artículos"} · {fmt(total)}</div>
+      </div>
+      <div style={{padding:"20px 20px 0"}}>
+        <div style={sCard({textAlign:"center",border:`2px solid ${C.gold}`})}>
+          <div style={{fontSize:11,color:C.muted,fontWeight:700,letterSpacing:"2px"}}>TICKET N°</div>
+          <div style={{fontSize:34,fontWeight:900,letterSpacing:"2px",color:C.dark,fontFamily:"ui-monospace,Menlo,monospace",margin:"6px 0"}}>{compra.ticket}</div>
+          <div style={{fontSize:13,color:C.muted,lineHeight:1.5}}>🎁 ¿Es para regalo? Escribe este número en la tarjeta de cambio. Con él vemos lo que se pagó.</div>
+        </div>
+        {look&&<div style={sCard({background:"#E8F5EE",padding:14})}><div style={{fontSize:15,fontWeight:800,color:C.green}}>✨ ¡Venta look! Ropa + accesorio</div></div>}
+        {soloRopa&&<div style={sCard({background:"#FEF8F3",padding:14})}><div style={{fontSize:14,color:C.text,lineHeight:1.5}}>💡 ¿Le mostraste unos aros, un collar o un scrunchie que vayan con lo que eligió? Si lo lleva, agrégalo a esta misma compra.</div></div>}
+        <div style={sCard()}>
+          {compra.items.map((s,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<compra.items.length-1?`1px solid ${C.border}`:"none"}}><div style={{fontSize:14}}><b>{s.producto}</b> <span style={{color:C.muted}}>{s.colorBase}</span></div><div style={{fontWeight:800}}>{fmt(s.precio)}</div></div>))}
+        </div>
+        <button onClick={onOtro} style={{...sBtn(C.orange,true),marginBottom:12}}>+ Agregar otro artículo a esta compra</button>
+        {precioCompleto&&<button onClick={onEmbajadora} style={{...sBtn(C.gold,true),marginBottom:12}}>⭐ Invitarla a Embajadoras Hindica</button>}
+        <button onClick={onListo} style={sBtn(C.dark,true)}>Listo</button>
+      </div>
+    </div>
+  );
+}
+
+function NuevaEmbajadora({tienda,seller,vendedoras,ticketInicial,onCreada,onCancel}){
+  const [f,setF]=useState({nombre:"",instagram:"",seguidores:"",telefono:"",ticket:ticketInicial||"",monto:"",vendedora:seller});
+  const [compraInfo,setCompraInfo]=useState(null);
+  const [msg,setMsg]=useState(null);
+  const [guardando,setGuardando]=useState(false);
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const revisarTicket=async t=>{
+    const v=normalizarTicket(t); if(!v)return;
+    const r=await ventasApi.porTicket(v);
+    const pend=ventasApi.pendientes().filter(x=>x.ticket===v).map(ventaLocal);
+    const items=[...(r||[]),...pend];
+    if(!items.length)return setCompraInfo({error:"No encontramos ese ticket. Puedes escribir el monto a mano."});
+    const total=items.reduce((a,x)=>a+(x.precio||0),0);
+    setCompraInfo({total,conDesc:items.some(x=>x.descuento),items}); set("monto",String(total)); set("ticket",v);
+  };
+  useEffect(()=>{ if(ticketInicial)revisarTicket(ticketInicial); },[]); // eslint-disable-line
+  const listo=f.nombre.trim()&&f.instagram.trim()&&(f.ticket.trim()||Number(f.monto)>0);
+  const guardar=async()=>{
+    setGuardando(true); setMsg(null);
+    try{
+      const fila=await embApi.crear({nombre:f.nombre.trim(),instagram:"@"+f.instagram.trim().replace(/^@+/,""),seguidores:Number(f.seguidores)||null,telefono:f.telefono.trim()||null,tienda,vendedora:f.vendedora,fecha:hoyISO(),ticket_compra:f.ticket.trim()?normalizarTicket(f.ticket):null,monto_compra:Number(f.monto)||null,estado:"invitada",videos:[]});
+      onCreada(fila);
+    }catch(e){ setMsg({ok:false,msg:"No se pudo guardar. ¿Ya se corrió el código nuevo en Supabase?"}); }
+    setGuardando(false);
+  };
+  const L=({t})=><div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",margin:"12px 0 6px"}}>{t}</div>;
+  return(
+    <div style={sCard({border:`2px solid ${C.gold}`})}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>⭐ Nueva embajadora</div>
+      <div style={{fontSize:13,color:C.muted}}>Solo clientas que compraron a precio completo y les encanta la marca.</div>
+      <L t="Nombre *"/><input style={sInput} value={f.nombre} onChange={e=>set("nombre",e.target.value)} placeholder="Nombre y apellido"/>
+      <L t="Instagram *"/><input style={sInput} value={f.instagram} onChange={e=>set("instagram",e.target.value)} placeholder="@usuario" autoCapitalize="none"/>
+      <L t="Seguidores"/><input style={sInput} type="number" value={f.seguidores} onChange={e=>set("seguidores",e.target.value)} placeholder="Ej: 2500"/>
+      <L t="Teléfono"/><input style={sInput} type="tel" value={f.telefono} onChange={e=>set("telefono",e.target.value)} placeholder="9 1234 5678"/>
+      <L t="Ticket de su compra"/>
+      <div style={{display:"flex",gap:8}}><input style={sInput} value={f.ticket} onChange={e=>set("ticket",e.target.value)} placeholder="Ej: M2511-4321"/><button onClick={()=>revisarTicket(f.ticket)} style={{...sBtn(C.dark),padding:"12px 14px",fontSize:14}}>Ver</button></div>
+      {compraInfo&&compraInfo.error&&<div style={{fontSize:13,color:C.red,marginTop:6}}>{compraInfo.error}</div>}
+      {compraInfo&&compraInfo.items&&<div style={{fontSize:13,marginTop:6,color:compraInfo.conDesc?C.red:C.green,fontWeight:700}}>{compraInfo.items.map(x=>x.producto).join(", ")} · {fmt(compraInfo.total)} · {compraInfo.conDesc?"⚠️ tuvo descuento (no es precio completo)":"✓ precio completo"}</div>}
+      <L t="Monto de su compra"/><input style={sInput} type="number" value={f.monto} onChange={e=>set("monto",e.target.value)} placeholder="$"/>
+      <L t="La invitó"/>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{vendedoras.map(v=><TagBtn key={v.nombre} label={v.nombre} active={f.vendedora===v.nombre} color={C.dark} bgActive="#EEF4F1" onClick={()=>set("vendedora",v.nombre)}/>)}</div>
+      <div style={{fontSize:12,color:C.muted,marginTop:10}}>{tienda} · {fmtDia(hoyISO())}</div>
+      <button disabled={!listo||guardando} onClick={guardar} style={{...sBtn(listo?C.gold:C.border,true),marginTop:14,opacity:listo?1:0.5}}>{guardando?"Guardando…":"Guardar embajadora"}</button>
+      <button onClick={onCancel} style={{background:"none",border:"none",color:C.muted,fontSize:14,cursor:"pointer",marginTop:10,width:"100%",fontFamily:"inherit"}}>Cancelar</button>
+      <MsgLinea msg={msg}/>
+    </div>
+  );
+}
+
+function FormVideo({inicial,modo,onGuardar,onCancel}){
+  const [v,setV]=useState({fecha:hoyISO(),link:"",likes:"",vistas:"",nivel:"Embajadora",recompensa:"",canje:"",...(inicial||{})});
+  const set=(k,x)=>setV(p=>({...p,[k]:x}));
+  const listo=v.fecha&&v.link.trim();
+  const inp={...sInput,minWidth:0,padding:"10px 10px",fontSize:14};
+  return(
+    <div style={{background:C.bg,borderRadius:12,padding:12,marginTop:10}}>
+      <div style={{fontSize:14,fontWeight:800,marginBottom:8}}>{inicial?"Editar video":"Nuevo video"}</div>
+      <div style={{display:"flex",gap:8,marginBottom:8}}>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:C.muted}}>Fecha</div><input style={inp} type="date" value={v.fecha} onChange={e=>set("fecha",e.target.value)}/></div>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:C.muted}}>❤️ Likes</div><input style={inp} type="number" value={v.likes} onChange={e=>set("likes",e.target.value)}/></div>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:C.muted}}>👁 Vistas</div><input style={inp} type="number" value={v.vistas} onChange={e=>set("vistas",e.target.value)}/></div>
+      </div>
+      <input style={{...inp,marginBottom:8}} placeholder="Link del video (Instagram)" value={v.link} onChange={e=>set("link",e.target.value)} autoCapitalize="none"/>
+      {modo==="duena"&&<>
+        <div style={{fontSize:12,color:C.muted,marginBottom:4}}>Nivel que alcanzó con este video</div>
+        <div style={{display:"flex",gap:6,marginBottom:8}}>{NIVELES.map(n=><TagBtn key={n} label={n} active={v.nivel===n} color={colorNivel(n)} bgActive="#F7F2E8" onClick={()=>set("nivel",n)}/>)}</div>
+        <input style={{...inp,marginBottom:8}} placeholder="Recompensa (ej: Pareo de regalo, 50% en un vestido)" value={v.recompensa} onChange={e=>set("recompensa",e.target.value)}/>
+        <div style={{fontSize:12,color:C.muted}}>Fecha en que la canjeó</div>
+        <input style={{...inp,marginBottom:8}} type="date" value={v.canje} onChange={e=>set("canje",e.target.value)}/>
+      </>}
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={onCancel} style={{...sBtn(C.border),color:C.text,flex:1,padding:"10px"}}>Cancelar</button>
+        <button disabled={!listo} onClick={()=>onGuardar({...v,link:v.link.trim(),likes:Number(v.likes)||0,vistas:Number(v.vistas)||0})} style={{...sBtn(listo?C.green:C.border),flex:2,padding:"10px",opacity:listo?1:0.5}}>Guardar video</button>
+      </div>
+    </div>
+  );
+}
+
+function FichaEmbajadora({emb,modo,todas,ventasCodigo,params,onCambio,onBack}){
+  const [e,setE]=useState(emb);
+  const [msg,setMsg]=useState(null);
+  const [form,setForm]=useState(null); // null | "nuevo" | índice
+  const [codigo,setCodigo]=useState(emb.codigo||"");
+  const [notas,setNotas]=useState(emb.notas||"");
+  const cambiar=async(fn,okMsg)=>{ setMsg(null); try{ const r=await embApi.cambiar(e.id,fn); setE(r); onCambio(r); setMsg({ok:true,msg:okMsg}); setForm(null); }catch(x){ setMsg({ok:false,msg:"No se pudo guardar. Revisa la conexión."}); } };
+  const videos=e.videos||[];
+  const nivel=nivelEmb(e); const st=estadoEmb(e); const tot=totalesEmb(e);
+  const pub=primeraPublicacion(e); const oro=fechaOro(e);
+  const wa=waLink(e.telefono);
+  const guardarCodigo=()=>{ const c=codigo.trim().toUpperCase(); if(c&&todas.some(x=>x.id!==e.id&&(x.codigo||"").toUpperCase()===c))return setMsg({ok:false,msg:"Ese código ya lo tiene otra embajadora."}); cambiar(()=>({codigo:c||null}),c?`✓ Código ${c} guardado.`:"Código quitado."); };
+  const ventasC=ventasCodigo||[]; const totalC=ventasC.reduce((a,s)=>a+(s.precio||0),0);
+  return(
+    <div>
+      <button onClick={onBack} style={{...sBtn(C.border),color:C.text,borderRadius:10,padding:"10px 16px",fontSize:14,marginBottom:14}}>← Volver</button>
+      <div style={sCard({border:`2px solid ${colorNivel(nivel)}`})}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+          <div><div style={{fontSize:20,fontWeight:900}}>{e.nombre}</div><div style={{fontSize:14,color:C.purple,fontWeight:700}}>{e.instagram}{e.seguidores?` · ${fmtNum(e.seguidores)} seguidores`:""}</div></div>
+          <Badge text={nivel} color={colorNivel(nivel)}/>
+        </div>
+        <div style={{fontSize:13,color:C.muted,marginTop:8,lineHeight:1.6}}>
+          {ESTADOS_EMB[st]} · {e.tienda} · la invitó <b style={{color:C.text}}>{e.vendedora}</b> el {fmtDia(e.fecha)}<br/>
+          Compra: {e.monto_compra?fmt(e.monto_compra):"—"}{e.ticket_compra?` · ticket ${e.ticket_compra}`:""}<br/>
+          {videos.length} {videos.length===1?"video":"videos"} · ❤️ {fmtNum(tot.likes)} · 👁 {fmtNum(tot.vistas)}
+        </div>
+        <div style={{fontSize:13,marginTop:8,padding:"8px 10px",borderRadius:10,background:pub?"#E8F5EE":"#F5F1EA",color:pub?C.green:C.muted,fontWeight:600}}>
+          {pub?`✓ Bono de ${fmt(params.bono_publicacion)} para ${e.vendedora} (publicó el ${fmtDia(pub)})`:`Bono de ${fmt(params.bono_publicacion)} para ${e.vendedora} cuando publique su primer video`}
+          {oro&&params.bono_oro>0?<><br/>✓ Bono Oro de {fmt(params.bono_oro)} ({fmtDia(oro)})</>:null}
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}>
+          {wa&&<a href={wa} target="_blank" rel="noreferrer" style={{...sBtn(C.green),padding:"10px 14px",fontSize:14,textDecoration:"none"}}>💬 WhatsApp</a>}
+          <a href={`https://instagram.com/${(e.instagram||"").replace(/^@/,"")}`} target="_blank" rel="noreferrer" style={{...sBtn(C.purple),padding:"10px 14px",fontSize:14,textDecoration:"none"}}>📷 Instagram</a>
+          {st==="invitada"&&<button onClick={()=>cambiar(()=>({estado:"seguimiento"}),"✓ Seguimiento anotado.")} style={{...sBtn(C.gold),padding:"10px 14px",fontSize:14}}>✓ Hice seguimiento</button>}
+        </div>
+      </div>
+
+      <div style={sCard()}>
+        <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>🎬 Videos</div>
+        {videos.length===0&&<div style={{fontSize:13,color:C.muted}}>Aún no publica. Cuando suba su video de 1 minuto, agrégalo aquí.</div>}
+        {videos.map((v,i)=>(
+          <div key={i} style={{padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:700}}>{fmtDia(v.fecha)} · ❤️ {fmtNum(v.likes)} · 👁 {fmtNum(v.vistas)}</div>
+                {v.link&&<a href={v.link} target="_blank" rel="noreferrer" style={{fontSize:12,color:C.purple,wordBreak:"break-all"}}>Ver video</a>}
+              </div>
+              <button onClick={()=>setForm(i)} style={{...btnMini(C.border),color:C.text,flexShrink:0}}>Editar</button>
+            </div>
+            <div style={{fontSize:12,marginTop:4,color:colorNivel(v.nivel||"Embajadora"),fontWeight:700}}>{v.nivel||"Embajadora"}{v.recompensa?<span style={{color:C.text,fontWeight:400}}> · 🎁 {v.recompensa}{v.canje?` · canjeado ${fmtDia(v.canje)}`:" · por canjear"}</span>:null}</div>
+            {form===i&&<FormVideo inicial={v} modo={modo} onCancel={()=>setForm(null)} onGuardar={nv=>cambiar(r=>{const l=[...(r.videos||[])];l[i]={...l[i],...nv};return {videos:l};},"✓ Video actualizado.")}/>}
+          </div>
+        ))}
+        {form==="nuevo"?<FormVideo modo={modo} onCancel={()=>setForm(null)} onGuardar={nv=>cambiar(r=>({videos:[...(r.videos||[]),nv],estado:"publico"}),"✓ Video agregado.")}/>
+          :<button onClick={()=>setForm("nuevo")} style={{...sBtn(C.orange,true),marginTop:12,padding:"12px"}}>+ Agregar video</button>}
+        {modo!=="duena"&&videos.length>0&&<div style={{fontSize:12,color:C.muted,marginTop:8}}>El nivel y la recompensa los decide la dueña.</div>}
+      </div>
+
+      {modo==="duena"&&<div style={sCard()}>
+        <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>💎 Código Platino</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:8}}>Las clientas lo dicen en caja y la vendedora lo anota en la venta. Ella gana {params.comision_platino}% de esas ventas.</div>
+        <div style={{display:"flex",gap:8}}><input style={sInput} placeholder="Ej: CAMI" value={codigo} onChange={x=>setCodigo(x.target.value.toUpperCase())}/><button onClick={guardarCodigo} style={{...sBtn(C.dark),padding:"12px 16px"}}>Guardar</button></div>
+        {e.codigo&&<div style={{fontSize:13,marginTop:10}}>Ventas con {e.codigo}: <b>{ventasC.length}</b> · {fmt(totalC)} · comisión <b style={{color:C.green}}>{fmt(Math.round(totalC*params.comision_platino/100))}</b></div>}
+        <div style={{fontSize:16,fontWeight:800,margin:"16px 0 6px"}}>📝 Notas</div>
+        <textarea style={{...sInput,height:70,resize:"none"}} value={notas} onChange={x=>setNotas(x.target.value)}/>
+        <button onClick={()=>cambiar(()=>({notas}),"✓ Notas guardadas.")} style={{...sBtn(C.dark,true),marginTop:8,padding:"10px"}}>Guardar notas</button>
+      </div>}
+      <MsgLinea msg={msg}/>
+    </div>
+  );
+}
+
+function EmbajadorasTienda({tienda,seller,vendedoras,embajadoras,setEmbajadoras,ticketInicial,params,onBack}){
+  const [vista,setVista]=useState(ticketInicial?"nueva":"lista");
+  const [sel,setSel]=useState(null);
+  const lista=embajadoras.filter(e=>e.tienda===tienda);
+  const mias=embajadoras.filter(e=>e.vendedora===seller);
+  const publicaron=mias.filter(e=>primeraPublicacion(e)).length;
+  const upsert=r=>setEmbajadoras(p=>p.some(x=>x.id===r.id)?p.map(x=>x.id===r.id?r:x):[r,...p]);
+  return(
+    <div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}>
+      <Header title="⭐ Embajadoras" subtitle={`${seller} · ${tienda}`} color={C.gold} onBack={onBack}/>
+      <div style={{padding:"20px 20px 0"}}>
+        {vista==="ficha"&&sel?<FichaEmbajadora emb={sel} modo="vendedora" todas={embajadoras} params={params} onCambio={r=>{upsert(r);setSel(r);}} onBack={()=>{setVista("lista");setSel(null);}}/>
+        :vista==="nueva"?<NuevaEmbajadora tienda={tienda} seller={seller} vendedoras={vendedoras} ticketInicial={ticketInicial} onCancel={()=>setVista("lista")} onCreada={r=>{upsert(r);setSel(r);setVista("ficha");}}/>
+        :<>
+          <div style={sCard({background:"#FFF6E5",border:`2px solid ${C.gold}`})}>
+            <div style={{fontSize:13,color:C.muted}}>Tus invitadas</div>
+            <div style={{display:"flex",gap:16,marginTop:6}}>
+              <div><div style={{fontSize:24,fontWeight:900}}>{mias.length}</div><div style={{fontSize:12,color:C.muted}}>invitadas</div></div>
+              <div><div style={{fontSize:24,fontWeight:900,color:C.green}}>{publicaron}</div><div style={{fontSize:12,color:C.muted}}>publicaron</div></div>
+              <div><div style={{fontSize:24,fontWeight:900,color:C.gold}}>{fmt(publicaron*params.bono_publicacion)}</div><div style={{fontSize:12,color:C.muted}}>en bonos</div></div>
+            </div>
+            <div style={{fontSize:12,color:C.muted,marginTop:8}}>Ganas {fmt(params.bono_publicacion)} cuando una embajadora que invitaste publica su primer video.</div>
+          </div>
+          <button onClick={()=>setVista("nueva")} style={{...sBtn(C.gold,true),marginBottom:16}}>+ Nueva embajadora</button>
+          {lista.length===0&&<div style={{...sCard(),textAlign:"center",color:C.muted,fontSize:14}}>Aún no hay embajadoras en {tienda}.</div>}
+          {lista.map(e=>(
+            <div key={e.id} onClick={()=>{setSel(e);setVista("ficha");}} style={{...sCard({padding:14}),cursor:"pointer"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                <div style={{minWidth:0}}><div style={{fontSize:15,fontWeight:800}}>{e.nombre}</div><div style={{fontSize:12,color:C.muted}}>{e.instagram} · invitó {e.vendedora}</div></div>
+                <Badge text={ESTADOS_EMB[estadoEmb(e)]} color={{invitada:C.muted,seguimiento:C.gold,publico:C.green}[estadoEmb(e)]}/>
+              </div>
+            </div>
+          ))}
+        </>}
+      </div>
+    </div>
+  );
+}
+
+function PanelEmbajadoras({embajadoras,setEmbajadoras,allSales,params}){
+  const [sel,setSel]=useState(null);
+  const upsert=r=>setEmbajadoras(p=>p.map(x=>x.id===r.id?r:x));
+  const ventasDe=cod=>cod?allSales.filter(s=>(s.codigo_embajadora||s.codigoEmbajadora||"").toUpperCase()===cod.toUpperCase()):[];
+  if(sel)return <FichaEmbajadora emb={sel} modo="duena" todas={embajadoras} ventasCodigo={ventasDe(sel.codigo)} params={params} onCambio={r=>{upsert(r);setSel(r);}} onBack={()=>setSel(null)}/>;
+  const nombres=[...new Set(embajadoras.map(e=>e.vendedora).filter(Boolean))];
+  const rankV=nombres.map(n=>{const l=embajadoras.filter(e=>e.vendedora===n);return {n,inv:l.length,pub:l.filter(e=>primeraPublicacion(e)).length,oro:l.filter(e=>fechaOro(e)).length};}).sort((a,b)=>b.pub-a.pub||b.oro-a.oro||b.inv-a.inv);
+  const rankE=[...embajadoras].map(e=>({e,...totalesEmb(e)})).sort((a,b)=>b.vistas-a.vistas||b.likes-a.likes);
+  const platino=embajadoras.filter(e=>e.codigo);
+  const porCanjear=embajadoras.flatMap(e=>(e.videos||[]).filter(v=>v.recompensa&&!v.canje).map(v=>({e,v})));
+  const fila={display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`,gap:8};
+  return(<>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
+      {[["Invitadas",embajadoras.length,C.dark],["Publicaron",embajadoras.filter(e=>primeraPublicacion(e)).length,C.green],["Oro o más",embajadoras.filter(e=>fechaOro(e)).length,C.gold]].map(([l,n,c])=>(
+        <div key={l} style={sCard({padding:12,marginBottom:0,textAlign:"center"})}><div style={{fontSize:24,fontWeight:900,color:c}}>{n}</div><div style={{fontSize:11,color:C.muted,textTransform:"uppercase",fontWeight:700}}>{l}</div></div>
+      ))}
+    </div>
+    {porCanjear.length>0&&<div style={sCard({border:`2px solid ${C.orange}`})}>
+      <div style={{fontSize:15,fontWeight:800,marginBottom:6}}>🎁 Recompensas por entregar ({porCanjear.length})</div>
+      {porCanjear.map(({e,v},i)=>(<div key={i} onClick={()=>setSel(e)} style={{...fila,cursor:"pointer"}}><div style={{fontSize:14}}><b>{e.nombre}</b> · {v.recompensa}</div><div style={{fontSize:12,color:C.muted}}>{e.tienda}</div></div>))}
+    </div>}
+    <div style={sCard()}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>🏆 Ranking vendedoras</div>
+      <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Invitadas · publicaron · llegaron a Oro</div>
+      {rankV.length===0&&<div style={{fontSize:13,color:C.muted}}>Aún no hay invitaciones.</div>}
+      {rankV.map((r,i)=>(<div key={r.n} style={fila}><div style={{fontSize:15,fontWeight:700}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":"·"} {r.n}</div><div style={{fontSize:14}}>{r.inv} · <b style={{color:C.green}}>{r.pub}</b> · <b style={{color:C.gold}}>{r.oro}</b></div></div>))}
+    </div>
+    <div style={sCard()}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>🌟 Ranking embajadoras</div>
+      <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Por vistas totales. Toca una para ver su ficha, darle nivel o anotar su recompensa.</div>
+      {rankE.length===0&&<div style={{fontSize:13,color:C.muted}}>Aún no hay embajadoras.</div>}
+      {rankE.map(({e,likes,vistas})=>(<div key={e.id} onClick={()=>setSel(e)} style={{...fila,cursor:"pointer"}}>
+        <div style={{minWidth:0}}><div style={{fontSize:15,fontWeight:700}}>{e.nombre} <span style={{fontSize:12,color:colorNivel(nivelEmb(e))}}>· {nivelEmb(e)}</span></div><div style={{fontSize:12,color:C.muted}}>{e.instagram} · {e.tienda} · {ESTADOS_EMB[estadoEmb(e)]}</div></div>
+        <div style={{textAlign:"right",fontSize:13,flexShrink:0}}>👁 {fmtNum(vistas)}<br/>❤️ {fmtNum(likes)}</div>
+      </div>))}
+    </div>
+    <div style={sCard()}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>💎 Códigos Platino</div>
+      {platino.length===0&&<div style={{fontSize:13,color:C.muted}}>Cuando una embajadora llegue a Platino, ábrele su ficha y crea su código.</div>}
+      {platino.map(e=>{const v=ventasDe(e.codigo);const t=v.reduce((a,s)=>a+(s.precio||0),0);return(
+        <div key={e.id} onClick={()=>setSel(e)} style={{...fila,cursor:"pointer"}}><div><div style={{fontSize:15,fontWeight:800}}>{e.codigo}</div><div style={{fontSize:12,color:C.muted}}>{e.nombre} · {v.length} ventas · {fmt(t)}</div></div><div style={{fontSize:15,fontWeight:800,color:C.green}}>{fmt(Math.round(t*params.comision_platino/100))}</div></div>
+      );})}
+    </div>
+  </>);
+}
+
+function PanelSueldos({allSales,embajadoras,params,guardarParams,equipo}){
+  const [mes,setMes]=useState(0); // 0 = este mes, 1 = mes pasado
+  const [edit,setEdit]=useState({});
+  const [msg,setMsg]=useState(null);
+  const ini=new Date(); ini.setHours(0,0,0,0); ini.setDate(1); ini.setMonth(ini.getMonth()-mes);
+  const fin=new Date(ini); fin.setMonth(fin.getMonth()+1);
+  const iniISO=ini.toLocaleDateString("en-CA"); const finISO=fin.toLocaleDateString("en-CA");
+  const enMes=d=>d&&d>=iniISO&&d<finISO;
+  const ventasMes=allSales.filter(s=>{const f=fechaVenta(s);return f&&f>=ini&&f<fin;});
+  const nombres=[...new Set([...equipo.filter(v=>v.activa!==false).map(v=>v.nombre),...ventasMes.map(s=>s.vendedora),...embajadoras.map(e=>e.vendedora)].filter(Boolean))];
+  const filas=nombres.map(n=>{
+    const vs=ventasMes.filter(s=>s.vendedora===n); const r=resumenVentas(vs);
+    const pubs=embajadoras.filter(e=>e.vendedora===n&&enMes(primeraPublicacion(e))).length;
+    const oros=embajadoras.filter(e=>e.vendedora===n&&enMes(fechaOro(e))).length;
+    const comision=Math.round(r.total*params.comision_pct/100);
+    const bonoPub=pubs*params.bono_publicacion, bonoOro=oros*params.bono_oro;
+    return {n,r,pubs,oros,comision,bonoPub,bonoOro,total:comision+bonoPub+bonoOro};
+  }).filter(f=>f.r.total>0||f.pubs||f.oros||equipo.some(v=>v.nombre===f.n&&v.activa!==false)).sort((a,b)=>b.total-a.total);
+  const platino=embajadoras.filter(e=>e.codigo).map(e=>{const t=ventasMes.filter(s=>(s.codigo_embajadora||s.codigoEmbajadora||"").toUpperCase()===e.codigo.toUpperCase()).reduce((a,s)=>a+(s.precio||0),0);return {e,t,c:Math.round(t*params.comision_platino/100)};}).filter(x=>x.t>0);
+  const nombreMes=ini.toLocaleDateString("es-CL",{month:"long",year:"numeric"});
+  const campos=[["comision_pct","Comisión vendedoras (%)"],["bono_publicacion","Bono por embajadora que publica ($)"],["bono_oro","Bono cuando llega a Oro ($)"],["comision_platino","Comisión embajadora Platino (%)"]];
+  const guardar=async()=>{ try{ for(const [k] of campos){ if(edit[k]!==undefined&&edit[k]!==""){ await guardarParams(k,Number(edit[k])); } } setEdit({}); setMsg({ok:true,msg:"✓ Guardado."}); }catch(e){ setMsg({ok:false,msg:"No se pudo guardar. Revisa la conexión."}); } };
+  return(<>
+    <div style={{display:"flex",gap:6,marginBottom:14}}>
+      {[[0,"Este mes"],[1,"Mes pasado"]].map(([id,l])=>(<button key={id} onClick={()=>setMes(id)} style={{flex:1,padding:"10px",borderRadius:10,border:`2px solid ${mes===id?C.purple:C.border}`,background:mes===id?C.purple:C.white,color:mes===id?C.white:C.text,fontFamily:"inherit",fontWeight:700,cursor:"pointer"}}>{l}</button>))}
+    </div>
+    <div style={{fontSize:13,color:C.muted,marginBottom:12}}>Parte variable de {nombreMes}: comisión {params.comision_pct}% de sus ventas + bonos de embajadoras. El sueldo base no está incluido.</div>
+    {filas.map(f=>(
+      <div key={f.n} style={sCard()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontSize:16,fontWeight:800}}>👤 {f.n}</div><div style={{fontSize:20,fontWeight:900,color:C.green}}>{fmt(f.total)}</div></div>
+        <div style={{fontSize:13,lineHeight:1.8}}>
+          Ventas {fmt(f.r.total)} · {f.r.compras} compras · ticket prom. {fmt(f.r.promedio)} · {f.r.looks} looks<br/>
+          Comisión {params.comision_pct}%: <b>{fmt(f.comision)}</b><br/>
+          Embajadoras que publicaron: {f.pubs} × {fmt(params.bono_publicacion)} = <b>{fmt(f.bonoPub)}</b>
+          {(f.oros>0||params.bono_oro>0)&&<><br/>Llegaron a Oro: {f.oros} × {fmt(params.bono_oro)} = <b>{fmt(f.bonoOro)}</b></>}
+        </div>
+      </div>
+    ))}
+    {platino.length>0&&<div style={sCard()}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:8}}>💎 Comisiones Platino de {nombreMes}</div>
+      {platino.map(x=>(<div key={x.e.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}><div style={{fontSize:14}}><b>{x.e.nombre}</b> ({x.e.codigo}) · ventas {fmt(x.t)}</div><div style={{fontWeight:800,color:C.green}}>{fmt(x.c)}</div></div>))}
+    </div>}
+    <div style={sCard({border:`2px solid ${C.purple}`})}>
+      <div style={{fontSize:16,fontWeight:800,marginBottom:10}}>⚙️ Reglas</div>
+      {campos.map(([k,l])=>(<div key={k} style={{marginBottom:10}}><div style={{fontSize:12,color:C.muted,fontWeight:700,marginBottom:4}}>{l} · ahora: {k.endsWith("pct")||k==="comision_platino"?`${params[k]}%`:fmt(params[k])}</div><input style={sInput} type="number" placeholder={String(params[k])} value={edit[k]??""} onChange={e=>setEdit(p=>({...p,[k]:e.target.value}))}/></div>))}
+      <button onClick={guardar} style={{...sBtn(C.purple,true),padding:"12px"}}>Guardar reglas</button>
+      <MsgLinea msg={msg}/>
+    </div>
+  </>);
+}
+
+function TurnoActivo({tienda,seller,sales,cashMovements,fondo,checksDue,params,onNewSale,onChequeo,onSalidaCaja,onInsumos,onVerStock,onEmbajadoras,onCambios,onCierre}){
+  const res=resumenVentas(sales);
+  const comision=Math.round(res.total*(params?params.comision_pct:3)/100);
   const totalVentas=sales.reduce((a,s)=>a+s.precio,0);
   const ventasEfectivo=sales.filter(s=>s.pago==="efectivo").reduce((a,s)=>a+s.precio,0);
   const salidas=cashMovements.reduce((a,m)=>a+m.monto,0);
@@ -1533,18 +2005,23 @@ function TurnoActivo({tienda,seller,sales,cashMovements,fondo,checksDue,onNewSal
           <div style={{flex:1,background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"14px 16px"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase"}}>Ventas hoy</div><div style={{fontSize:28,fontWeight:900,color:C.white,marginTop:4}}>{sales.length}</div></div>
           <div style={{flex:2,background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"14px 16px"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase"}}>Total vendido</div><div style={{fontSize:22,fontWeight:800,color:C.gold,marginTop:4}}>{fmt(totalVentas)}</div></div>
         </div>
+        <div style={{display:"flex",gap:12,marginTop:12}}>
+          <div style={{flex:1,background:"rgba(201,150,62,0.22)",borderRadius:14,padding:"12px 14px"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.55)",textTransform:"uppercase"}}>Tu comisión hoy</div><div style={{fontSize:20,fontWeight:900,color:C.white,marginTop:2}}>{fmt(comision)}</div></div>
+          <div style={{flex:1,background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"12px 14px"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase"}}>Ticket promedio</div><div style={{fontSize:20,fontWeight:800,color:C.white,marginTop:2}}>{fmt(res.promedio)}</div></div>
+          <div style={{background:"rgba(255,255,255,0.1)",borderRadius:14,padding:"12px 14px",textAlign:"center"}}><div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase"}}>Looks</div><div style={{fontSize:20,fontWeight:800,color:C.white,marginTop:2}}>✨{res.looks}</div></div>
+        </div>
       </div>
       <div style={{padding:"20px 20px 0"}}>
         {checksDue&&(<div onClick={onChequeo} style={{background:C.orange,borderRadius:16,padding:"16px 18px",marginBottom:18,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{color:C.white,fontWeight:800,fontSize:15}}>⏰ Hora de revisar la tienda</div><div style={{color:"rgba(255,255,255,0.75)",fontSize:13,marginTop:2}}>Toca para hacer el chequeo horario</div></div><div style={{color:C.white,fontSize:22}}>→</div></div>)}
         <button onClick={onNewSale} style={{...sBtn(C.orange,true),padding:"20px",fontSize:18,borderRadius:16,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}><span>🛍️</span> Registrar venta</button>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-          {[{label:"Chequeo tienda",icon:"🏪",color:C.dark,action:onChequeo},{label:"Mi stock",icon:"📦",color:"#5B6BA8",action:onVerStock},{label:"Salida de caja",icon:"💵",color:C.purple,action:onSalidaCaja},{label:"Reportar insumos",icon:"📋",color:"#5E8A6E",action:onInsumos},{label:"Cerrar turno",icon:"🔒",color:"#888",action:onCierre}].map(({label,icon,color,action})=>(
+          {[{label:"Chequeo tienda",icon:"🏪",color:C.dark,action:onChequeo},{label:"Mi stock",icon:"📦",color:"#5B6BA8",action:onVerStock},{label:"Salida de caja",icon:"💵",color:C.purple,action:onSalidaCaja},{label:"Reportar insumos",icon:"📋",color:"#5E8A6E",action:onInsumos},{label:"Embajadoras",icon:"⭐",color:C.gold,action:onEmbajadoras},{label:"Cambios (ticket)",icon:"🎁",color:"#B0645A",action:onCambios},{label:"Cerrar turno",icon:"🔒",color:"#888",action:onCierre}].map(({label,icon,color,action})=>(
             <button key={label} onClick={action} style={{background:color,color:C.white,border:"none",borderRadius:14,padding:"16px 10px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6,fontFamily:"inherit"}}><span style={{fontSize:22}}>{icon}</span>{label}</button>
           ))}
         </div>
         {sales.length>0&&<div style={sCard()}>
           <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>Ventas de hoy</div>
-          {sales.map((sale,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:i<sales.length-1?`1px solid ${C.border}`:"none"}}>{sale.foto&&<img src={sale.foto} alt="" style={{width:52,height:52,borderRadius:10,objectFit:"cover",flexShrink:0}}/>}<div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sale.producto}</div><div style={{fontSize:12,color:C.muted}}>{sale.colorBase}{sale.estampado&&sale.estampado!=="-"?` · ${sale.estampado}`:""}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:15,fontWeight:800}}>{fmt(sale.precio)}</div><div style={{fontSize:11,color:C.muted}}>{MEDIOS_PAGO.find(p=>p.id===sale.pago)?.label}</div></div></div>))}
+          {sales.map((sale,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0",borderBottom:i<sales.length-1?`1px solid ${C.border}`:"none"}}>{sale.foto&&<img src={sale.foto} alt="" style={{width:52,height:52,borderRadius:10,objectFit:"cover",flexShrink:0}}/>}<div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sale.producto}</div><div style={{fontSize:12,color:C.muted}}>{sale.colorBase}{sale.ticket?` · ticket ${sale.ticket}`:""}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:15,fontWeight:800}}>{fmt(sale.precio)}</div><div style={{fontSize:11,color:C.muted}}>{MEDIOS_PAGO.find(p=>p.id===sale.pago)?.label}</div></div></div>))}
           <div style={{display:"flex",justifyContent:"space-between",paddingTop:14}}><div style={{fontSize:14,fontWeight:700}}>Efectivo esperado en caja</div><div style={{fontSize:18,fontWeight:800,color:C.green}}>{fmt(cajaEsperada)}</div></div>
         </div>}
       </div>
@@ -1647,7 +2124,7 @@ function ClubCaja({tienda,club,setClub}){
   );
 }
 
-function NuevaVenta({ofertas,seller,tienda,onSave,onBack}){
+function NuevaVenta({ofertas,embajadoras=[],compra=null,seller,tienda,onSave,onBack}){
   const [categoria,setCategoria]=useState("");
   const [producto,setProducto]=useState("");
   const [colorBase,setColorBase]=useState("");
@@ -1655,34 +2132,40 @@ function NuevaVenta({ofertas,seller,tienda,onSave,onBack}){
   const [colorAcento,setColorAcento]=useState("");
   const [foto,setFoto]=useState(null);
   const [precio,setPrecio]=useState("");
-  const [pago,setPago]=useState("");
-  const [club,setClub]=useState({decidido:false,socia:null});
+  const [pago,setPago]=useState(compra?compra.pago:"");
+  const [club,setClub]=useState(compra?{decidido:true,socia:compra.socia||null}:{decidido:false,socia:null});
+  const [codigo,setCodigo]=useState(compra?compra.codigo||"":"");
+  const conCodigo=embajadoras.filter(e=>e.codigo);
+  const embCodigo=codigo?conCodigo.find(e=>e.codigo.toUpperCase()===codigo):null;
   const [guardando,setGuardando]=useState(false);
   const [errorGuardar,setErrorGuardar]=useState("");
   const socia=club.socia;
   const oferta=producto?buscarOferta(ofertas,categoria,producto,colorBase):null;
   const conOferta=!!(socia&&oferta);   // precio especial de socia; además se aplica su 5% (o 20% de bienvenida)
-  const descuento=socia?(socia.bienvenida_disponible?20:5):0;
+  const descuento=compra?(compra.descuento||0):(socia?(socia.bienvenida_disponible?20:5):0);
   const precioBase=conOferta?oferta.precio:(precio?Number(precio):0);
   const precioFinal=precioBase?Math.round(precioBase*(100-descuento)/100):0;
   const esJoy=JOYERIA_ITEMS.includes(producto);
   const todosProds=categoria?(categoria==="Joyería"?JOYERIA_ITEMS:(ROPA_ITEMS[categoria]||[])):[];
-  const canSave=club.decidido&&producto&&colorBase&&foto&&(precio||conOferta)&&pago&&(esJoy||colorAcento);
+  const canSave=club.decidido&&producto&&colorBase&&foto&&(precio||conOferta)&&pago&&(esJoy||colorAcento)&&(!codigo||embCodigo);
   const guardar=async()=>{
     setErrorGuardar("");
-    if(socia){
+    if(socia&&!compra){   // el descuento del Club se registra una sola vez por compra
       setGuardando(true);
       const r=await clubRpc("club_compra",{p_clave:clubClave.get(),p_numero:socia.numero,p_bienvenida:descuento===20,p_tienda:clubTienda(tienda)});
       setGuardando(false);
       if(!r.ok){ setErrorGuardar(r.error||"No se pudo registrar el descuento del Club."); return; }
     }
-    onSave({hora:new Date(),vendedora:seller,tienda,categoria,producto,colorBase,estampado:"-",colorAcento:esJoy?"-":colorAcento,foto,precio:precioFinal,precioLista:precio?Number(precio):null,descuentoClub:conOferta?`oferta+${descuento}%`:descuento,pago,numeroSocia:socia?socia.numero:null,nombreSocia:socia?socia.nombre:null});
+    onSave({hora:new Date(),vendedora:seller,tienda,categoria,producto,colorBase,estampado:"-",colorAcento:esJoy?"-":colorAcento,foto,precio:precioFinal,precioLista:precio?Number(precio):null,descuentoClub:conOferta?`oferta+${descuento}%`:descuento,pago,numeroSocia:socia?socia.numero:null,nombreSocia:socia?socia.nombre:null,codigoEmbajadora:embCodigo?embCodigo.codigo.toUpperCase():null,_socia:socia,_descuentoPct:descuento});
   };
   return(
     <div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}>
       <Header title="Registrar Venta" subtitle={`${seller} · ${tienda}`} color={C.orange} onBack={onBack}/>
       <div style={{padding:"20px 20px 0"}}>
-        <ClubCaja tienda={tienda} club={club} setClub={setClub}/>
+        {compra?<div style={sCard({border:`2px solid ${C.green}`,padding:14})}>
+          <div style={{fontSize:12,color:C.muted,fontWeight:700}}>MISMA COMPRA · TICKET {compra.ticket}</div>
+          <div style={{fontSize:15,fontWeight:800,marginTop:4}}>Artículo {compra.items.length+1}{socia?` · ${socia.nombre} · ${descuento}% de socia`:" · sin Club"}</div>
+        </div>:<ClubCaja tienda={tienda} club={club} setClub={setClub}/>}
         {club.decidido&&<div style={sCard()}>
           <div style={{fontSize:16,fontWeight:800,marginBottom:12}}>Categoría</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:8}}>{[...Object.keys(ROPA_ITEMS),"Joyería"].map(cat=><TagBtn key={cat} label={cat} active={categoria===cat} onClick={()=>{setCategoria(cat);setProducto("");}}/>)}</div>
@@ -1704,7 +2187,7 @@ function NuevaVenta({ofertas,seller,tienda,onSave,onBack}){
           <div style={{fontSize:13,color:C.muted,marginBottom:14}}>{esJoy?"Foto clara de la joyería vendida.":"Foto del estampado del artículo."}</div>
           <FotoInput label="Foto" value={foto} onChange={setFoto} required/>
         </div>}
-        {oferta&&club.decidido&&!socia&&<div style={sCard({background:"#FFF6E5",border:`2px solid ${C.gold}`})}>
+        {oferta&&club.decidido&&!socia&&!compra&&<div style={sCard({background:"#FFF6E5",border:`2px solid ${C.gold}`})}>
           <div style={{fontSize:15,fontWeight:800,color:C.gold,marginBottom:6}}>⭐ Oferta exclusiva para socias</div>
           <div style={{fontSize:14,lineHeight:1.5,marginBottom:12}}>Dile: <b>"Este {producto.toLowerCase()} tiene precio especial para socias del Club: {fmt(oferta.precio)}. ¿Te unes? Es gratis, y hoy además tienes 20% de bienvenida: lo llevas a {fmt(Math.round(oferta.precio*0.8))}."</b></div>
           <button onClick={()=>setClub({decidido:false,socia:null})} style={{...sBtn(C.gold,true),fontSize:14,padding:"12px"}}>Se unió · buscar su número</button>
@@ -1725,6 +2208,12 @@ function NuevaVenta({ofertas,seller,tienda,onSave,onBack}){
           </div>}
           <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10}}>Medio de pago</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{MEDIOS_PAGO.map(p=>(<button key={p.id} onClick={()=>setPago(p.id)} style={{padding:"14px",borderRadius:12,fontFamily:"inherit",border:`2px solid ${pago===p.id?C.dark:C.border}`,background:pago===p.id?C.dark:C.white,color:pago===p.id?C.white:C.text,fontSize:15,fontWeight:700,cursor:"pointer"}}>{p.icon} {p.label}</button>))}</div>
+        </div>}
+        {foto&&conCodigo.length>0&&<div style={sCard()}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>💎 ¿Viene con código de embajadora?</div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:8}}>Solo si la clienta lo menciona. Si no, déjalo vacío.</div>
+          <input style={sInput} placeholder="Código (opcional)" value={codigo} onChange={e=>setCodigo(e.target.value.toUpperCase().trim())} autoCapitalize="characters"/>
+          {codigo&&<div style={{fontSize:13,marginTop:6,fontWeight:700,color:embCodigo?C.green:C.red}}>{embCodigo?`✓ Código de ${embCodigo.nombre}`:"Ese código no existe. Revísalo o déjalo vacío."}</div>}
         </div>}
         {errorGuardar&&<div style={{background:"#FDECEA",color:C.red,borderRadius:12,padding:"12px 14px",fontSize:14,marginBottom:12}}>{errorGuardar}</div>}
         {canSave&&<button disabled={guardando} onClick={guardar} style={{...sBtn(C.green,true),padding:"18px",fontSize:17,borderRadius:16,opacity:guardando?0.6:1}}>{guardando?"Guardando…":`✓ Guardar venta${descuento||conOferta?` · cobrar ${fmt(precioFinal)}`:""}`}</button>}
@@ -1893,6 +2382,13 @@ export default function HindicaApp(){
   const [turnoId,setTurnoId]    = useState(null);
   const [avisoPendiente,setAvisoPendiente] = useState(false);
   const [ofertas,setOfertas] = useState([]);
+  const [embajadoras,setEmbajadoras] = useState([]);
+  const cargarEmbajadoras = async () => { const r=await embApi.cargar(); if(r)setEmbajadoras(r); };
+  const [params,setParams] = useState(PARAMS_DEFAULT);
+  const cargarParams = async () => { const r=await cfgApi.leer("config_app","&clave=in.(comision_pct,bono_publicacion,bono_oro,comision_platino)"); if(r)setParams(p=>{const n={...p};r.forEach(x=>{if(x.valor!==null&&x.valor!==""&&!isNaN(Number(x.valor)))n[x.clave]=Number(x.valor);});return n;}); };
+  const guardarParams = async (k,v) => { await cfgApi.guardarClave(k,String(v)); setParams(p=>({...p,[k]:v})); };
+  const [compra,setCompra] = useState(null);       // compra en curso (varios artículos, un ticket)
+  const [ticketEmb,setTicketEmb] = useState("");
   const cargarOfertas = async () => { const r=await cfgApi.leer("ofertas_socias"); if(r)setOfertas(r); };
   // Puerta de entrada: el código se recuerda en cada teléfono; si la dueña lo cambia, se pide de nuevo
   const [acceso,setAcceso] = useState("revisando"); // "revisando" | "ok" | "pedir"
@@ -1922,7 +2418,8 @@ export default function HindicaApp(){
   },[]);
 
   useEffect(()=>{const t=setInterval(()=>setNow(new Date()),30000);return()=>clearInterval(t);},[]);
-  useEffect(()=>{ recargarStock(); cargarOfertas(); },[]); // eslint-disable-line
+  useEffect(()=>{ recargarStock(); cargarOfertas(); cargarEmbajadoras(); cargarParams(); },[]); // eslint-disable-line
+  useEffect(()=>{ if(mode==="duena"||screen==="embajadoras"||screen==="newSale") cargarEmbajadoras(); },[mode,screen]); // eslint-disable-line
   useEffect(()=>{ if(screen==="newSale"||mode==="duena") cargarOfertas(); },[screen,mode]); // eslint-disable-line
   useEffect(()=>{
     (async()=>{
@@ -1951,7 +2448,7 @@ export default function HindicaApp(){
       setSales([...delTurno,...pend].map(x=>({...x,hora:fechaVenta(x)||x.hora})));
     })();
   },[]); // eslint-disable-line
-  const turnoActivo=mode==="vendedora"&&["shift","newSale","chequeo","salidaCaja","insumos","verStock","cierre"].includes(screen);
+  const turnoActivo=mode==="vendedora"&&["shift","newSale","compraLista","embajadoras","cambios","chequeo","salidaCaja","insumos","verStock","cierre"].includes(screen);
   useEffect(()=>{
     if(screen==="cerrado"){ turnoGuardado.borrar(); return; }
     if(turnoActivo&&seller&&tienda) turnoGuardado.guardar({fecha:hoyISO(),tienda,seller,shiftStart:shiftStart||new Date(),
@@ -1976,7 +2473,7 @@ export default function HindicaApp(){
         let nota="";
         if(nombre!==viejo){
           setAllSales(p=>p.map(s=>s.vendedora===viejo?{...s,vendedora:nombre}:s));
-          try{ await cfgApi.actualizar("ventas",`vendedora=eq.${encodeURIComponent(viejo)}`,{vendedora:nombre}); await cfgApi.actualizar("turnos",`vendedora=eq.${encodeURIComponent(viejo)}`,{vendedora:nombre}); nota=` Sus ventas anteriores ahora aparecen como ${nombre}.`; }
+          try{ await cfgApi.actualizar("ventas",`vendedora=eq.${encodeURIComponent(viejo)}`,{vendedora:nombre}); await cfgApi.actualizar("turnos",`vendedora=eq.${encodeURIComponent(viejo)}`,{vendedora:nombre}); try{ await cfgApi.actualizar("embajadoras",`vendedora=eq.${encodeURIComponent(viejo)}`,{vendedora:nombre}); setEmbajadoras(p=>p.map(e=>e.vendedora===viejo?{...e,vendedora:nombre}:e)); }catch(e){} nota=` Sus ventas anteriores ahora aparecen como ${nombre}.`; }
           catch(e){ nota=" (Las ventas anteriores quedaron con el nombre antiguo.)"; }
         }
         return {ok:true,msg:`✓ Guardado.${nota}`};
@@ -2023,7 +2520,7 @@ export default function HindicaApp(){
   if(mode==="duena_login")return W(<LoginDuena duenaPin={duenaPin} onPinGuardado={setDuenaPin} onSuccess={()=>setMode("duena")} onBack={()=>setMode("selector")}/>);
   if(mode==="duena")return W(<PanelDuena cfg={{...cfg,guardarCodigoAcceso,ofertas,
       async agregarOferta(o){ try{ const f=await cfgApi.insertar("ofertas_socias",{...o,activa:true}); setOfertas(p=>[...p,f]); return {ok:true,msg:`✓ Oferta creada: ${o.producto} a ${fmt(o.precio)} para socias.`}; }catch(e){ return {ok:false,msg:"No se pudo guardar. ¿Corriste el código de Supabase?"}; } },
-      async activarOferta(o,activa){ try{ await cfgApi.actualizar("ofertas_socias",`id=eq.${o.id}`,{activa}); setOfertas(p=>p.map(x=>x.id===o.id?{...x,activa}:x)); return {ok:true,msg:activa?"✓ Oferta activada.":"Oferta desactivada."}; }catch(e){ return {ok:false,msg:"No se pudo guardar."}; } }}} recargar={async()=>{await recargarVentas();await recargarStock();}} allSales={allSales} allFlags={allFlags} allStock={allStock} setAllStock={setAllStock} vendedoras={vendedoras} setVendedoras={setVendedoras} duenaPin={duenaPin} setDuenaPin={setDuenaPin} tiendas={tiendas} setTiendas={setTiendas} ferias={ferias} setFerias={setFerias} quizStats={quizStats} onBack={()=>setMode("selector")}/>);
+      async activarOferta(o,activa){ try{ await cfgApi.actualizar("ofertas_socias",`id=eq.${o.id}`,{activa}); setOfertas(p=>p.map(x=>x.id===o.id?{...x,activa}:x)); return {ok:true,msg:activa?"✓ Oferta activada.":"Oferta desactivada."}; }catch(e){ return {ok:false,msg:"No se pudo guardar."}; } }}} embajadoras={embajadoras} setEmbajadoras={setEmbajadoras} params={params} guardarParams={guardarParams} recargar={async()=>{await recargarVentas();await recargarStock();await cargarEmbajadoras();}} allSales={allSales} allFlags={allFlags} allStock={allStock} setAllStock={setAllStock} vendedoras={vendedoras} setVendedoras={setVendedoras} duenaPin={duenaPin} setDuenaPin={setDuenaPin} tiendas={tiendas} setTiendas={setTiendas} ferias={ferias} setFerias={setFerias} quizStats={quizStats} onBack={()=>setMode("selector")}/>);
 
   if(screen==="login")return W(
     <div style={{minHeight:"100vh",background:C.dark,fontFamily:"system-ui,-apple-system,sans-serif"}}>
@@ -2039,8 +2536,20 @@ export default function HindicaApp(){
   if(screen==="principios")return W(<PrincipiosDiarios seller={seller} onComplete={()=>setScreen("quiz")}/>);
   if(screen==="quiz")return W(<QuizDiario seller={seller} historial={quizStats.filter(s=>s.vendedora===seller)} onComplete={resultados=>{setQuizStats(p=>[...p,...resultados.map(r=>({...r,vendedora:seller,fecha:new Date()}))]);setScreen("opening");}}/>);
   if(screen==="opening")return W(<Apertura tienda={tienda} seller={seller} onComplete={async data=>{setOpening(data);setScreen("shift");if(data.insumos)addFlag({titulo:"Insumos faltantes en apertura",detalle:data.insumos,tienda,nivel:"amarillo"});try{const r=await db.insert("turnos",{vendedora:seller,tienda,fondo_caja:data.fondo,foto_apertura:data.fotoTienda,foto_tablero_apertura:data.fotoTablero,insumos_faltantes:data.insumos,notas_apertura:data.notas,hora_apertura:data.hora});if(r&&r[0])setTurnoId(r[0].id);}catch(e){}}}/>);
-  if(screen==="shift")return W(<>{avisoPendiente&&<div onClick={async()=>{await ventasApi.reintentar();if(!ventasApi.pendientes().length)setAvisoPendiente(false);}} style={{background:"#FFF1DC",color:"#8A5A12",padding:"10px 16px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"system-ui,-apple-system,sans-serif"}}>⚠️ Una venta está guardada en este teléfono y se subirá cuando haya señal. No la registres de nuevo. (Toca para reintentar)</div>}<TurnoActivo tienda={tienda} seller={seller} sales={sales} cashMovements={cashMovements} fondo={opening?.fondo} checksDue={checksDue} onNewSale={()=>setScreen("newSale")} onChequeo={()=>setScreen("chequeo")} onSalidaCaja={()=>setScreen("salidaCaja")} onInsumos={()=>setScreen("insumos")} onVerStock={()=>setScreen("verStock")} onCierre={()=>setScreen("cierre")}/></>);
-  if(screen==="newSale")return W(<NuevaVenta ofertas={ofertas} seller={seller} tienda={tienda} onSave={async s=>{setSales(p=>[...p,s]);setAllSales(p=>[...p,s]);setAllStock(prev=>{const u=[...prev];const idx=u.findIndex(i=>i.ubicacion===tienda&&i.producto===s.producto&&i.colorBase===s.colorBase&&i.cantidad>0);if(idx>=0)u[idx]={...u[idx],cantidad:u[idx].cantidad-1};return u;});setScreen("shift");const ok=await ventasApi.guardar({cliente_id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,turno_id:turnoId,vendedora:s.vendedora,tienda:s.tienda,categoria:s.categoria,producto:s.producto,color_base:s.colorBase,estampado:s.estampado,color_acento:s.colorAcento,foto:s.foto,precio:s.precio,medio_pago:s.pago,hora:s.hora});if(!ok)setAvisoPendiente(true);}} onBack={()=>setScreen("shift")}/>);
+  if(screen==="shift")return W(<>{avisoPendiente&&<div onClick={async()=>{await ventasApi.reintentar();if(!ventasApi.pendientes().length)setAvisoPendiente(false);}} style={{background:"#FFF1DC",color:"#8A5A12",padding:"10px 16px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"system-ui,-apple-system,sans-serif"}}>⚠️ Una venta está guardada en este teléfono y se subirá cuando haya señal. No la registres de nuevo. (Toca para reintentar)</div>}<TurnoActivo tienda={tienda} seller={seller} sales={sales} cashMovements={cashMovements} fondo={opening?.fondo} checksDue={checksDue} params={params} onEmbajadoras={()=>{setTicketEmb("");setScreen("embajadoras");}} onCambios={()=>setScreen("cambios")} onNewSale={()=>{setCompra(null);setScreen("newSale");}} onChequeo={()=>setScreen("chequeo")} onSalidaCaja={()=>setScreen("salidaCaja")} onInsumos={()=>setScreen("insumos")} onVerStock={()=>setScreen("verStock")} onCierre={()=>setScreen("cierre")}/></>);
+  if(screen==="newSale")return W(<NuevaVenta ofertas={ofertas} embajadoras={embajadoras} compra={compra} seller={seller} tienda={tienda} onSave={async s=>{
+    const ticket=compra?compra.ticket:nuevoTicket(tienda);
+    const {_socia,_descuentoPct,...venta}=s; const v={...venta,ticket};
+    setSales(p=>[...p,v]);setAllSales(p=>[...p,v]);
+    setAllStock(prev=>{const u=[...prev];const idx=u.findIndex(i=>i.ubicacion===tienda&&i.producto===v.producto&&i.colorBase===v.colorBase&&i.cantidad>0);if(idx>=0)u[idx]={...u[idx],cantidad:u[idx].cantidad-1};return u;});
+    setCompra({ticket,socia:_socia||null,descuento:_descuentoPct||0,pago:v.pago,codigo:v.codigoEmbajadora||"",items:[...(compra?compra.items:[]),v]});
+    setScreen("compraLista");
+    const ok=await ventasApi.guardar({cliente_id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,turno_id:turnoId,vendedora:v.vendedora,tienda:v.tienda,categoria:v.categoria,producto:v.producto,color_base:v.colorBase,estampado:v.estampado,color_acento:v.colorAcento,foto:v.foto,precio:v.precio,medio_pago:v.pago,hora:v.hora,ticket,codigo_embajadora:v.codigoEmbajadora||null,descuento:v.descuentoClub?String(v.descuentoClub):null,numero_socia:v.numeroSocia||null});
+    if(!ok)setAvisoPendiente(true);}} onBack={()=>setScreen(compra?"compraLista":"shift")}/>);
+  if(screen==="compraLista"&&compra)return W(<CompraLista compra={compra} onOtro={()=>setScreen("newSale")} onEmbajadora={()=>{setTicketEmb(compra.ticket);setCompra(null);setScreen("embajadoras");}} onListo={()=>{setCompra(null);setScreen("shift");}}/>);
+  if(screen==="compraLista"){ setTimeout(()=>setScreen("shift"),0); return W(<div style={{minHeight:"100vh",background:C.bg}}/>); }
+  if(screen==="embajadoras")return W(<EmbajadorasTienda tienda={tienda} seller={seller} vendedoras={vendedoras} embajadoras={embajadoras} setEmbajadoras={setEmbajadoras} ticketInicial={ticketEmb} params={params} onBack={()=>{setTicketEmb("");setScreen("shift");}}/>);
+  if(screen==="cambios")return W(<div style={{background:C.bg,minHeight:"100vh",fontFamily:"system-ui,-apple-system,sans-serif",paddingBottom:40}}><Header title="🎁 Cambios" subtitle={`${seller} · ${tienda}`} color="#B0645A" onBack={()=>setScreen("shift")}/><div style={{padding:"20px 20px 0"}}><BuscarTicket/></div></div>);
   if(screen==="chequeo")return W(<ChequeoHorario seller={seller} tienda={tienda} onSave={c=>{setHourlyChecks(p=>[...p,c]);setLastCheck(new Date());if(c.notas)addFlag({titulo:"Reporte en chequeo horario",detalle:c.notas,tienda,nivel:"amarillo"});setScreen("shift");}} onBack={()=>setScreen("shift")}/>);
   if(screen==="salidaCaja")return W(<SalidaCaja seller={seller} onSave={m=>{setCashMovements(p=>[...p,m]);addFlag({titulo:"Salida de caja",detalle:`${seller} retiró ${fmt(m.monto)}: ${m.motivo}`,tienda,nivel:"amarillo"});setScreen("shift");}} onBack={()=>setScreen("shift")}/>);
   if(screen==="insumos")return W(<ReporteInsumos seller={seller} tienda={tienda} onSave={r=>{addFlag({titulo:"Insumos faltantes",detalle:r.items,tienda,nivel:"rojo"});setScreen("shift");}} onBack={()=>setScreen("shift")}/>);
